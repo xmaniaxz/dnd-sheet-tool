@@ -1,0 +1,184 @@
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  appearance: textfield; /* Chrome, Safari, Edge */
+  -moz-appearance: textfield; /* Firefox */
+}
+
+/* Fun result pop animation for dice result */
+@keyframes result-pop-keyframes {
+  0% { transform: scale(0.8); filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
+  60% { transform: scale(1.15); filter: drop-shadow(0 0 10px rgba(59,130,246,0.8)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(59,130,246,0)); }
+}
+
+.result-pop {
+  animation: result-pop-keyframes 700ms ease-out;
+}
+
+.text-glow-accent {
+  /* Soft outer glow using the current accent */
+  text-shadow: 0 0 10px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+
+/* Theme variables */
+:root {
+  --accent: #22c55e; /* emerald-500 default */
+  --surface: #18181b;
+  --panel: #0f0f14;
+  --border: #3f3f46;
+  --text: #e4e4e7;
+}
+
+/* Helper to simulate Tailwind focus ring with CSS var when needed */
+.focus-ring-accent:focus {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 30%, transparent);
+}
+
+/* Accent utilities */
+.accent-soft {
+  color: #e5e7eb; /* zinc-200 */
+  background-color: color-mix(in oklab, var(--accent) 18%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 35%, transparent);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.accent-soft:hover {
+  background-color: color-mix(in oklab, var(--accent) 28%, transparent);
+  transform: translateY(-1px);
+}
+
+.accent-solid {
+  color: var(--accent-contrast, white);
+  background-color: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 80%, black 20%);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.accent-solid:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.dot-accent {   background-color: color-mix(in oklab, var(--accent) 18%, transparent); }
+.dot-accent.active { background-color: var(--accent); }
+
+/* Accent glow background for decorative rings */
+.accent-glow {
+  background: radial-gradient(
+      120% 120% at 20% 20%,
+      color-mix(in oklab, var(--accent) 60%, transparent) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      120% 120% at 80% 80%,
+      color-mix(in oklab, var(--accent) 40%, transparent) 0%,
+      transparent 60%
+    );
+}
+
+/* Form controls */
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* Themed, subtle scrollbars for Chromium/Firefox */
+.scrollbar-thin {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #52525b transparent; /* thumb, track */
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;  /* vertical */
+  height: 8px; /* horizontal */
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #52525b; /* zinc-600 */
+  border-radius: 9999px;
+  border: 2px solid rgba(24, 24, 27, 0.9); /* approx /90 */
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: #71717a; /* zinc-500 */
+}
+
+/* Utility to hide scrollbars but keep scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none; /* IE 10+ */
+  scrollbar-width: none;   /* Firefox */
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Edge */
+}
+.theme-surface {
+  background: var(--surface);
+  color: var(--text);
+}
+.panel {
+  background-color: var(--panel);
+  color: var(--text);
+  border-color: var(--border);
+}
+.panel-alt {
+  background-color: var(--panel-alt);
+  color: var(--text);
+  border-color: var(--border);
+}
+.panel-subtle {
+  background-color: var(--panel-subtle);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+/* Backpanel: large section containers distinct from panels */
+.backpanel {
+  background: var(--backpanel, var(--surface));
+  color: var(--text);
+  border-color: var(--border);
+}
+.ring-theme {
+  /* used with Tailwind ring- utilities if needed */
+  --tw-ring-color: var(--border);
+}
+
+.glow-full::before,
+.glow-full::after {
+ content: "";
+ position: absolute;
+ inset: -6%;
+ border-radius: 9999px;
+ pointer-events: none;
+ background: radial-gradient(
+ circle at 50% 50%,
+ color-mix(in oklab, var(--accent) 65%, transparent) 0%,
+ color-mix(in oklab, var(--accent) 35%, transparent) 35%,
+ transparent 70%
+ );
+ filter: blur(18px);
+ opacity: 0.55;
+}
+.glow-full::after {
+ inset: -12%;
+ filter: blur(28px);
+ opacity: 0.35;
+}
+
+@keyframes glow-pulse {
+0%, 100% { opacity: 0.55; transform: scale(1); }
+50% { opacity: 0.95; transform: scale(1.02); }
+}
+.glow-pulse::before { animation: glow-pulse 2800ms ease-in-out infinite; }
+.glow-pulse::after { animation: glow-pulse 2800ms ease-in-out infinite reverse; }
