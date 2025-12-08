@@ -13,7 +13,7 @@ export function SaveIndicator() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
-          className="fixed bottom-4 right-4 z-50"
+          className="fixed top-4 right-4 z-50"
         >
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 shadow-lg">
             {isSaving ? (

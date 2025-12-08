@@ -14,7 +14,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
-import {GetSpellsFromTable} from "@/app/character/node-appwrite";
+import {DeleteAllSpells, GetSpellsFromTable, ListSpellsFromTable, UploadAllSpells} from "@/app/character/node-appwrite";
 import ClassChangeModal from "@/components/modals/ClassChangeModal";
 import SpellSlotChangesModal from "@/components/modals/SpellSlotChangesModal";
 
@@ -196,6 +196,8 @@ export default function SpellsSection() {
   const [showEditModeExitModal, setShowEditModeExitModal] = useState(false);
   const [pendingEditModeValue, setPendingEditModeValue] = useState<boolean | null>(null);
   const [spells, setSpells] = useState<Spell[]>([]);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
   
   /* ----------------------------------------------------------------------------
    * REFS FOR CHANGE DETECTION
@@ -204,6 +206,26 @@ export default function SpellsSection() {
   const prevLevelRef = useRef(data.level);
   const prevEditModeRef = useRef(editMode);
   const editModeChangesRef = useRef<string[]>([]);
+  const searchDebounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
+
+  /* ----------------------------------------------------------------------------
+   * DEBOUNCED SEARCH
+   * ---------------------------------------------------------------------------- */
+  useEffect(() => {
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
+    }
+    
+    searchDebounceTimerRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    
+    return () => {
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current);
+      }
+    };
+  }, [searchQuery]);
 
   /* ----------------------------------------------------------------------------
    * CONSTANTS
@@ -533,23 +555,36 @@ export default function SpellsSection() {
     setByPath("spells.slots", defaultSlots);
   };
   
-  // Filter based on tab and level
-  const baseSpells = activeTab === "spellbook" 
-    ? spells.filter(spell => isSpellKnown(spell.name))
-    : spells;
+  // Filter based on tab and level with memoization
+  const filteredSpells = useMemo(() => {
+    // Filter by tab
+    const baseSpells = activeTab === "spellbook" 
+      ? spells.filter(spell => isSpellKnown(spell.name))
+      : spells;
     
-  // Filter by class if not "all"
-  const classFiltredSpells = selectedClass === "all"
-    ? baseSpells
-    : baseSpells.filter(spell => {
-        if (!spell.classes) return false;
-        const spellClasses = spell.classes.toLowerCase().split(',').map(c => c.trim());
-        return spellClasses.includes(selectedClass.toLowerCase());
-      });
+    // Filter by search query (debounced)
+    const searchFilteredSpells = debouncedSearchQuery.trim() === ""
+      ? baseSpells
+      : baseSpells.filter(spell => 
+          spell.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          spell.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          spell.school.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+        );
     
-  const filteredSpells = selectedLevel === "all" 
-    ? classFiltredSpells 
-    : classFiltredSpells.filter(spell => spell.level === selectedLevel);
+    // Filter by class if not "all"
+    const classFiltredSpells = selectedClass === "all"
+      ? searchFilteredSpells
+      : searchFilteredSpells.filter(spell => {
+          if (!spell.classes) return false;
+          const spellClasses = spell.classes.toLowerCase().split(',').map(c => c.trim());
+          return spellClasses.includes(selectedClass.toLowerCase());
+        });
+    
+    // Filter by level
+    return selectedLevel === "all" 
+      ? classFiltredSpells 
+      : classFiltredSpells.filter(spell => spell.level === selectedLevel);
+  }, [spells, activeTab, debouncedSearchQuery, selectedClass, selectedLevel, knownSpellNames]);
 
   // Group spells by level for better organization
   const spellsByLevel = useMemo(() => {
@@ -575,6 +610,9 @@ export default function SpellsSection() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* <button onClick={ListSpellsFromTable}>List Spells</button>
+      <button onClick={UploadAllSpells}>Upload All Spells</button>
+      <button onClick={DeleteAllSpells}>Delete All Spells</button> */}
       {/* Class Change Modal */}
       {showClassChangeModal && (
         <ClassChangeModal
@@ -731,8 +769,41 @@ export default function SpellsSection() {
         </button>
       </div>
 
-      {/* Filters Row */}
+      {/* Search and Filters Row */}
       <div className="flex gap-4 flex-wrap items-end">
+        {/* Search Bar */}
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs opacity-60 mb-1 block">Search</label>
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search spells..."
+              className="w-full px-3 py-2 pl-9 pr-9 rounded-lg text-sm font-medium panel-subtle border hover:border-(--accent)/50 transition-all duration-200 focus:outline-none focus:border-(--accent)"
+            />
+            <svg 
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50 pointer-events-none"
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-50 hover:opacity-100 transition-opacity"
+                title="Clear search"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Class Filter Dropdown */}
         <div className="flex-1 min-w-[200px]">
           <label className="text-xs opacity-60 mb-1 block">Class</label>
