@@ -14,7 +14,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
-import {DeleteAllSpells, GetSpellsFromTable, ListSpellsFromTable, UploadAllSpells} from "@/app/character/node-appwrite";
+import {DeleteAllSpells, GetSpellsFromTable, UploadAllSpells} from "@/app/character/node-appwrite";
 import ClassChangeModal from "@/components/modals/ClassChangeModal";
 import SpellSlotChangesModal from "@/components/modals/SpellSlotChangesModal";
 
@@ -189,7 +189,7 @@ export default function SpellsSection() {
    * ---------------------------------------------------------------------------- */
   const [activeTab, setActiveTab] = useState<TabType>("spellbook");
   const [selectedLevel, setSelectedLevel] = useState<number | "all">("all");
-  const [selectedClass, setSelectedClass] = useState<string>(data.identity.class || "all");
+  const [selectedClass, setSelectedClass] = useState<string>("all");
   const [expandedSpell, setExpandedSpell] = useState<string | null>(null);
   const [editingSlots, setEditingSlots] = useState<number | null>(null);
   const [showClassChangeModal, setShowClassChangeModal] = useState(false);
@@ -563,14 +563,14 @@ export default function SpellsSection() {
       : spells;
     
     // Filter by search query (debounced)
-    const searchFilteredSpells = debouncedSearchQuery.trim() === ""
+    const searchFilteredSpells = !debouncedSearchQuery || debouncedSearchQuery.trim() === ""
       ? baseSpells
       : baseSpells.filter(spell => 
           spell.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           spell.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           spell.school.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
         );
-    
+
     // Filter by class if not "all"
     const classFiltredSpells = selectedClass === "all"
       ? searchFilteredSpells

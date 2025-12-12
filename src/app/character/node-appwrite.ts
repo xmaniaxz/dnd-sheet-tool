@@ -20,8 +20,6 @@ export async function GetSpellsFromTable()
         tableId: process.env.NEXT_PUBLIC_APPWRITE_SPELLS_COLLECTION_ID as string,
         queries: [Query.limit(900)]
     })
-
-    // console.log("Spells fetched from Appwrite:", result);
     
     // Pluck only the fields needed for the Spell type
     const spells = result.rows.map(row => {
@@ -54,17 +52,8 @@ export async function GetSpellsFromTable()
     return spells;
 }
 
-export async function ListSpellsFromTable()
-{
-    console.log(API);
-    console.log(typeof API);
-    // API.map((item) => {
-    //     console.log(item.SpellName);
-    // });
-}
 
 export async function UploadAllSpells() {
-    console.log('Starting spell upload to Appwrite...');
     
     const allSpells: { SpellName: string; School: string; CastingTime: string; Range: string; Duration: string; Components: string; Description: string; HigherLevel: string | String; Classes: string; SpellLevel: String; }[] = [];
     
@@ -110,7 +99,7 @@ export async function UploadAllSpells() {
         }
     }
     
-    console.log(`Found ${allSpells.length} spells to upload`);
+
     
     let success = 0;
     let failed = 0;

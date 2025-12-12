@@ -11,6 +11,7 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useSearchParams } from "next/navigation";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
 import HitPoints from "@/components/character/HpBar";
@@ -29,6 +30,7 @@ import CoinsPanel from "@/components/character/CoinsPanel";
 import InventoryPanel from "@/components/character/InventoryPanel";
 import SpellsSection from "@/components/character/SpellsSection";
 import { SaveIndicator } from "@/components/SaveIndicator";
+import ProfileImageUpload from "@/components/character/ProfileImageUpload";
 
 /* ============================================================================
  * TYPE DEFINITIONS
@@ -47,9 +49,24 @@ type Feat = {
  * ============================================================================ */
 
 export default function CharacterPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("Feats");
-  const { data, setData, setByPath } = useCharacter();
+  const { data, setData, setByPath, loadCharacter, createNewCharacter, isLoading } = useCharacter();
   const { editMode, toggleEditMode } = useEditMode();
+
+  // Handle URL parameters for loading or creating characters
+  useEffect(() => {
+    const characterId = searchParams.get('id');
+    const isNew = searchParams.get('new');
+    
+    if (isNew === 'true') {
+      // Create a new character
+      createNewCharacter();
+    } else if (characterId) {
+      // Load existing character
+      loadCharacter(characterId);
+    }
+  }, [searchParams, loadCharacter, createNewCharacter]);
 
   const handleTabChange = useCallback((tab: Tab) => {
     setActiveTab(tab);
@@ -434,20 +451,59 @@ function Placeholder({ title, text }: { title: string; text: string }) {
 /* -------------------------------- Portrait -------------------------------- */
 
 function Portrait({ className = "" }: { className?: string }) {
+  const { data, setByPath } = useCharacter();
+  const { editMode } = useEditMode();
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  const handleImageChange = useCallback((imageUrl: string) => {
+    setByPath("profilePicture", imageUrl);
+  }, [setByPath]);
+
   return (
-    <div className={`relative ${className}`}>
-      {/* Outer circle */}
-      <div className="w-full aspect-square absolute inset-0 rounded-full accent-glow glow-full glow-pulse" />
-      {/* Inner */}
-      <div className="relative flex h-full w-full items-center justify-center rounded-full  ring-2 ring-(--border) overflow-hidden">
-        {/* Swap this for next/image if you're using it */}
-        <img
-          src="default_character.jpg"
-          alt="Alexis Mistara"
-          className="object-cover h-full w-full"
-        />
+    <>
+      <div className={`relative ${className} group`}>
+        {/* Outer circle */}
+        <div className="w-full aspect-square absolute inset-0 rounded-full accent-glow glow-full glow-pulse" />
+        {/* Inner */}
+        <div className="relative flex h-full w-full items-center justify-center rounded-full ring-2 ring-(--border) overflow-hidden">
+          <img
+            src={data.profilePicture || "/default_character.jpg"}
+            alt={data.name || "Character"}
+            className="object-cover h-full w-full"
+          />
+          
+          {/* Edit overlay - only shows in edit mode */}
+          {editMode && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowUploadModal(true)}
+              className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              <div className="flex flex-col items-center gap-2 text-white">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                </svg>
+                <span className="text-sm font-medium">Change Image</span>
+              </div>
+            </motion.button>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Upload Modal */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <ProfileImageUpload
+            currentImage={data.profilePicture}
+            onImageChange={handleImageChange}
+            onClose={() => setShowUploadModal(false)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 

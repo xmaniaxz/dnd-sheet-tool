@@ -170,19 +170,19 @@ const defaultData: CharacterData = {
   id: null,
   sheetId: null,
   profilePicture: null,
-  name: "Alexis Mistara",
+  name: "",
   level: 1,
   identity: {
     playerName: "",
-    characterName: "Alexis Mistara",
+    characterName: "",
     race: "",
     class: "",
     subClass: "",
     background: "",
     alignment: "",
-    experience: "",
+    experience: "0",
   },
-  hp: { current: 36, max: 72, temp: 0 },
+  hp: { current: 10, max: 10, temp: 0 },
   abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
   proficiencies: {
     saves: { str: false, dex: false, con: false, int: false, wis: false, cha: false },
@@ -227,9 +227,9 @@ const defaultData: CharacterData = {
       survival: false,
     },
   },
-  ac: 13,
-  proficiency: 3,
-  passivePerception: 11,
+  ac: 10,
+  proficiency: 2,
+  passivePerception: 10,
   speed: 30,
   initiative: 0,
   inspiration: false,
@@ -298,7 +298,6 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
           // Try to load from Appwrite
           const doc = await characterService.get(storedDocId);
           if (doc) {
-            console.log("Loaded character from Appwrite:", doc);
             documentIdRef.current = doc.$id || storedDocId;
             const characterData: CharacterData = {
               id: doc.$id,
@@ -338,7 +337,6 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
       // Fallback to localStorage
       const loaded = readFromStorage();
       setData(loaded);
-      console.log("Loaded character data from localStorage:", loaded);
       lastSavedRef.current = loaded;
       setDirty(false);
       setIsLoading(false);
@@ -359,7 +357,7 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
 
   // Mark as dirty when data changes (but not on initial load)
   useEffect(() => {
-    if (!lastSavedRef.current || isLoading) return;
+    if (!lastSavedRef.current || isLoading || isSaving) return;
     try {
       const prev = JSON.stringify(lastSavedRef.current);
       const next = JSON.stringify(data);
@@ -372,18 +370,63 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
     writeToStorage(data);
     setDirty(true);
 
-    // Auto-save to Appwrite after 2 seconds of inactivity
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-    
-    autoSaveTimerRef.current = setTimeout(() => {
-      if (documentIdRef.current) {
-        save();
-      }
-    }, 2000);
+    // Auto-save disabled - user must manually save
+    // // Auto-save to Appwrite after 2 seconds of inactivity
+    // if (autoSaveTimerRef.current) {
+    //   clearTimeout(autoSaveTimerRef.current);
+    // }
+    // 
+    // autoSaveTimerRef.current = setTimeout(() => {
+    //   if (documentIdRef.current) {
+    //     // Call save directly inline to avoid dependency issue
+    //     setIsSaving(true);
+    //     const saveData = async () => {
+    //       try {
+    //         if (documentIdRef.current) {
+    //           const updated = await characterService.update(documentIdRef.current, data);
+    //           console.log("Character auto-saved:", updated);
+    //           lastSavedRef.current = data;
+    //           setDirty(false);
+    //         }
+    //       } catch (error) {
+    //         console.error("Failed to auto-save character:", error);
+    //       } finally {
+    //         setIsSaving(false);
+    //       }
+    //     };
+    //     saveData();
+    //   } else {
+    //     // No document ID yet - create new document
+    //     setIsSaving(true);
+    //     const saveData = async () => {
+    //       try {
+    //         const created = await characterService.create(data);
+    //         console.log("Character created in Appwrite:", created);
+    //         documentIdRef.current = created.$id || null;
+    //         if (typeof window !== 'undefined' && created.$id) {
+    //           window.localStorage.setItem(DOCUMENT_ID_KEY, created.$id);
+    //           
+    //           // Update URL to reflect the new document ID
+    //           const url = new URL(window.location.href);
+    //           if (url.searchParams.get('new') === 'true') {
+    //             url.searchParams.delete('new');
+    //             url.searchParams.set('id', created.$id);
+    //             window.history.replaceState({}, '', url);
+    //           }
+    //         }
+    //         lastSavedRef.current = data;
+    //         setDirty(false);
+    //       } catch (error) {
+    //         console.error("Failed to auto-save (create) character:", error);
+    //       } finally {
+    //         setIsSaving(false);
+    //       }
+    //     };
+    //     saveData();
+    //   }
+    // }, 2000);
 
-  }, [data, isLoading]);
+  }, [data, isLoading, isSaving]);
 
   // Cleanup auto-save timer
   useEffect(() => {
@@ -426,16 +469,22 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
       if (documentIdRef.current) {
         // Update existing document
         const updated = await characterService.update(documentIdRef.current, data);
-        console.log("Character updated in Appwrite:", updated);
         lastSavedRef.current = data;
         setDirty(false);
       } else {
         // Create new document
         const created = await characterService.create(data);
-        console.log("Character created in Appwrite:", created);
         documentIdRef.current = created.$id || null;
         if (typeof window !== 'undefined' && created.$id) {
           window.localStorage.setItem(DOCUMENT_ID_KEY, created.$id);
+          
+          // Update URL to reflect the new document ID
+          const url = new URL(window.location.href);
+          if (url.searchParams.get('new') === 'true') {
+            url.searchParams.delete('new');
+            url.searchParams.set('id', created.$id);
+            window.history.replaceState({}, '', url);
+          }
         }
         lastSavedRef.current = data;
         setDirty(false);
@@ -495,16 +544,21 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
   const createNewCharacter = useCallback(async () => {
     setIsLoading(true);
     try {
-      const created = await characterService.create(defaultData);
-      documentIdRef.current = created.$id || null;
-      if (typeof window !== 'undefined' && created.$id) {
-        window.localStorage.setItem(DOCUMENT_ID_KEY, created.$id);
+      // Clear the document ID - this will be a truly new character
+      documentIdRef.current = null;
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(DOCUMENT_ID_KEY);
+        window.localStorage.removeItem(STORAGE_KEY);
       }
+      
+      // Reset to default data - don't create in Appwrite yet
+      // It will auto-create on first save (when user makes changes)
       setData(defaultData);
       lastSavedRef.current = defaultData;
       setDirty(false);
+      
     } catch (error) {
-      console.error("Failed to create new character:", error);
+      console.error("Failed to initialize new character:", error);
     } finally {
       setIsLoading(false);
     }

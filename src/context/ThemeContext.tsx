@@ -17,8 +17,8 @@ type ThemeContextValue = {
 const STORAGE_KEY = "theme-v1";
 
 const defaultTheme: Theme = {
-  name: "emerald",
-  accent: "#22c55e", // Tailwind emerald-500 default
+  name: "amber",
+  accent: "#f97316", // Tailwind orange-500 (more amber/orange than yellow)
   mode: "dark",
 };
 

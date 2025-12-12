@@ -54,7 +54,6 @@ export default function LoginPage() {
     const fetchUser = async () => {
       try {
         const user = await account.get();
-        console.log(user);
         setLoggedInUser(user);
       } catch (err) {
         setLoggedInUser(null);
@@ -62,6 +61,12 @@ export default function LoginPage() {
     };
     fetchUser();
   }, []);
+
+  useEffect(() => {
+    if (loggedInUser) {
+      router.push("/dashboard");
+    }
+  }, [loggedInUser]);
 
   return (
     <div className="relative min-h-screen">
@@ -90,7 +95,7 @@ export default function LoginPage() {
               <div>
                 <div className="flex w-full flex-col items-center">
                   <Image
-                    src="/logo.png"
+                    src="/Logo.png"
                     alt="Logo"
                     width={250}
                     height={150}
@@ -184,8 +189,7 @@ export default function LoginPage() {
                     type="button"
                     className="btn-primary"
                     onClick={() => {
-                      //TODO: Change from sheet to dashboard
-                      router.push("/character");
+                      router.push("/dashboard");
                     }}
                   >
                     Continue

@@ -9,7 +9,7 @@ const HUES: Hue[] = [
   { name: "Sky",     shades: ["#7dd3fc", "#38bdf8", "#0284c7"] },
   { name: "Violet",  shades: ["#a78bfa", "#8b5cf6", "#6d28d9"] },
   { name: "Rose",    shades: ["#fb7185", "#f43f5e", "#e11d48"] },
-  { name: "Amber",   shades: ["#fbbf24", "#f59e0b", "#d97706"] },
+  { name: "Amber",   shades: ["#fb923c", "#f97316", "#ea580c"] },
   { name: "Cyan",    shades: ["#22d3ee", "#06b6d4", "#0891b2"] },
 ];
 
