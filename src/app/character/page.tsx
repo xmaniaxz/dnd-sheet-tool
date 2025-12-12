@@ -10,7 +10,7 @@
 
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useRef, useCallback, memo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
@@ -48,7 +48,7 @@ type Feat = {
  * MAIN CHARACTER PAGE COMPONENT
  * ============================================================================ */
 
-export default function CharacterPage() {
+function CharacterPageContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("Feats");
   const { data, setData, setByPath, loadCharacter, createNewCharacter, isLoading } = useCharacter();
@@ -507,9 +507,24 @@ function Portrait({ className = "" }: { className?: string }) {
   );
 }
 
-
-
-
+// Wrapper with Suspense boundary
+export default function CharacterPage() {
+  return (
+    <Suspense fallback={
+      <div className="w-full min-h-screen theme-surface flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full border-4 border-purple-500/30"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-t-purple-500 animate-spin"></div>
+          </div>
+          <p className="text-lg opacity-70 animate-pulse">Loading character...</p>
+        </div>
+      </div>
+    }>
+      <CharacterPageContent />
+    </Suspense>
+  );
+}
 
 
 
