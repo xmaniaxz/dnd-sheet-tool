@@ -116,7 +116,7 @@ export default function DashboardPage() {
   };
 
   const confirmOpenCharacter = () => {
-    router.push(`/character?id=${openModal.characterId}`);
+    router.push(`./character?id=${openModal.characterId}`);
   };
 
   const handleDeleteCharacter = (
