@@ -64,7 +64,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (loggedInUser) {
-      router.push("/dashboard");
+      router.push("./dashboard");
     }
   }, [loggedInUser]);
 
@@ -189,7 +189,7 @@ export default function LoginPage() {
                     type="button"
                     className="btn-primary"
                     onClick={() => {
-                      router.push("/dashboard");
+                      router.push("./dashboard");
                     }}
                   >
                     Continue

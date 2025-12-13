@@ -8,7 +8,7 @@ export default function Home() {
 
   useEffect(() => {
     // Client-side redirect to avoid server-side redirect loops
-    router.replace("/login");
+    router.replace("./login");
   }, [router]);
 
   return null;

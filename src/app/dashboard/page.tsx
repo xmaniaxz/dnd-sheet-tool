@@ -97,7 +97,7 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     try {
       await account.deleteSession("current");
-      router.push("/login");
+      router.push("./login");
     } catch (err) {
       console.error("Logout failed:", err);
     }
@@ -108,7 +108,7 @@ export default function DashboardPage() {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("character-document-id");
     }
-    router.push("/character?new=true");
+    router.push("./character?new=true");
   };
 
   const handleOpenCharacter = (characterId: string, characterName: string) => {
