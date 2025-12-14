@@ -22,7 +22,6 @@ export default function StatsRow() {
     const base = data.initiative ?? 0;
     
     const parts = [];
-    if (base !== 0) parts.push(`Base: ${base}`);
     parts.push(`DEX: ${dexMod >= 0 ? '+' : ''}${dexMod}`);
     if (alertBonus > 0) parts.push(`Alert: +${alertBonus}`);
     
