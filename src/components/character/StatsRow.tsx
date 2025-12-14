@@ -11,7 +11,7 @@ export default function StatsRow() {
     const alertBonus = data.feats?.some(feat => 
       feat.title.toLowerCase().includes('alert')
     ) ? 5 : 0;
-    return (data.initiative ?? 0) + dexMod + alertBonus;
+    return dexMod + alertBonus;
   };
 
   const getInitiativeBreakdown = () => {
@@ -107,7 +107,7 @@ function StatShield({
           defaultIfEmpty={0}
           normalize={(n) => Math.max(0, n)}
           onChange={(v) => onChange?.(v)}
-          className="w-14 text-center rounded-md  border border-zinc-700 px-2 py-0.5 text-xs  focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+          className="w-14 text-center rounded-md  border border-zinc-700 px-2 py-0.5 text-xs  focus:outline-none focus:ring-1 focus:ring-(--accent)"
         />
       ) : (
         <span className="text-2xl font-semibold">{value}</span>
@@ -141,7 +141,7 @@ function StatRect({
           value={value}
           defaultIfEmpty={0}
           onChange={(v) => onChange?.(v)}
-          className="w-16 text-center rounded-md  border border-zinc-700 px-2 py-0.5 text-xs  focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+          className="w-16 text-center rounded-md  border border-zinc-700 px-2 py-0.5 text-xs  focus:outline-none focus:ring-1 focus:ring-(--accent)"
         />
       ) : (
         <div className="text-2xl font-semibold">{value}</div>
