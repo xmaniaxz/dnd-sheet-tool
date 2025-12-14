@@ -1,4 +1,4 @@
-import { Client,TablesDB,Query ,Account } from 'node-appwrite';
+import { Client,TablesDB,Query ,Account, ID } from 'node-appwrite';
 import API from "@/../public/api.json";
 export const client = new Client();
 
@@ -128,6 +128,7 @@ export async function UploadAllSpells() {
             await tablesDB.createRow({
                 databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID as string,
                 tableId: process.env.NEXT_PUBLIC_APPWRITE_SPELLS_COLLECTION_ID as string,
+                rowId: ID.unique(),
                 data: spell
             });
             success++;

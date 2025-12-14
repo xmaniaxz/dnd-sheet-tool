@@ -93,7 +93,7 @@ export default function ProfileImageUpload({
     
     setIsLoading(true);
     // Test if the URL is valid by loading it
-    const img = new Image();
+    const img = new window.Image();
     img.onload = () => {
       setPreview(urlInput);
       setIsLoading(false);

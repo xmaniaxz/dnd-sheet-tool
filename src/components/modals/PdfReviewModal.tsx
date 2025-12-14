@@ -263,7 +263,7 @@ export default function PdfReviewModal({
                 {multiline ? (
                   <AutoResizeTextarea
                     id={key}
-                    value={editedData[key] ?? ""}
+                    value={String(editedData[key] ?? "")}
                     onChange={(e) => handleChange(key, (e.target as HTMLTextAreaElement).value)}
                     className="panel"
                     style={{
@@ -275,7 +275,7 @@ export default function PdfReviewModal({
                   <input
                     id={key}
                     type={type}
-                    value={editedData[key] ?? ""}
+                    value={String(editedData[key] ?? "")}
                     onChange={(e) =>
                       handleChange(
                         key,

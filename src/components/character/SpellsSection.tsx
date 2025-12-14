@@ -475,7 +475,6 @@ export default function SpellsSection() {
   const handleKeepChanges = () => {
     // User wants to keep the modified spell slots
     setShowEditModeExitModal(false);
-    setPendingEditModeValue(null);
   };
 
   const handleDiscardChanges = () => {
@@ -484,7 +483,6 @@ export default function SpellsSection() {
     setByPath("spells.slots", defaultSlots);
     
     setShowEditModeExitModal(false);
-    setPendingEditModeValue(null);
   };
   
   // Get spell slots from character data

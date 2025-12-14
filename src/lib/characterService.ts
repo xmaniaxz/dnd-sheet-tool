@@ -13,7 +13,7 @@ export type CharacterDocument = CharacterData & {
   $createdAt?: string;
   $updatedAt?: string;
   userId?: string;
-  teamId?: string;
+  teamId?: string | null;
 };
 
 /**
@@ -335,7 +335,7 @@ function parseCharacterDocument(doc: Record<string, unknown>): CharacterDocument
     passivePerception: get<number | undefined>("passivePerception"),
     speed: get<number | undefined>("speed"),
     initiative: get<number | undefined>("initiative"),
-    inspiration: get<number | undefined>("inspiration"),
+    inspiration: get<boolean | undefined>("inspiration"),
     deathSaves: typeof get<unknown>("deathSaves") === "string"
       ? JSON.parse(get<string>("deathSaves"))
       : (get<unknown>("deathSaves") as CharacterData["deathSaves"]),
@@ -345,7 +345,7 @@ function parseCharacterDocument(doc: Record<string, unknown>): CharacterDocument
     feats: typeof get<unknown>("feats") === "string"
       ? JSON.parse(get<string>("feats"))
       : (get<unknown>("feats") as CharacterData["feats"]),
-    languages: get<string[] | undefined>("languages"),
+    languages: get<string | undefined>("languages"),
     notes: get<string | undefined>("notes"),
     inventory: typeof get<unknown>("inventory") === "string"
       ? JSON.parse(get<string>("inventory"))
