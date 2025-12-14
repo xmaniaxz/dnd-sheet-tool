@@ -69,7 +69,9 @@ export const characterService = {
       }
 
       // Prepare the document - remove id and sheetId as Appwrite uses $id
-      const { id, sheetId, ...characterWithoutIdFields } = character;
+      const { id: _unusedId, sheetId: _unusedSheetId, ...characterWithoutIdFields } = character;
+      void _unusedId;
+      void _unusedSheetId;
 
       const doc = {
         ...characterWithoutIdFields,
@@ -128,8 +130,11 @@ export const characterService = {
       }
 
       return doc;
-    } catch (error) {
-      console.error("Failed to get character:", error);
+    } catch (error: unknown) {
+      const err = error as { code?: number; message?: string };
+      if (err?.code !== 404 && !err?.message?.includes('could not be found')) {
+        console.error("Failed to get character:", error);
+      }
       return null;
     }
   },
@@ -154,8 +159,10 @@ export const characterService = {
       }
 
       // Remove id and sheetId fields as Appwrite uses $id
-      const { id, sheetId, ...characterWithoutIdFields } = character;
-      const doc: any = { ...characterWithoutIdFields };
+      const { id: _unusedId, sheetId: _unusedSheetId, ...characterWithoutIdFields } = character;
+      void _unusedId;
+      void _unusedSheetId;
+      const doc: Record<string, unknown> = { ...characterWithoutIdFields };
 
       // Convert complex objects to JSON strings
       if (character.identity) doc.identity = JSON.stringify(character.identity);
@@ -298,51 +305,53 @@ export const characterService = {
 /**
  * Parse a raw Appwrite document into CharacterDocument
  */
-function parseCharacterDocument(doc: any): CharacterDocument {
+function parseCharacterDocument(doc: Record<string, unknown>): CharacterDocument {
+  const get = <T>(key: string) => doc[key] as T;
   return {
-    $id: doc.$id,
-    $createdAt: doc.$createdAt,
-    $updatedAt: doc.$updatedAt,
-    userId: doc.userId,
-    teamId: doc.teamId || null,
-    id: doc.$id, // Use $id instead of doc.id
-    sheetId: doc.sheetId || null,
-    profilePicture: doc.profilePicture || null,
-    name: doc.name,
-    level: doc.level,
-    identity:
-      typeof doc.identity === "string"
-        ? JSON.parse(doc.identity)
-        : doc.identity,
-    hp: typeof doc.hp === "string" ? JSON.parse(doc.hp) : doc.hp,
-    abilities:
-      typeof doc.abilities === "string"
-        ? JSON.parse(doc.abilities)
-        : doc.abilities,
-    proficiencies:
-      typeof doc.proficiencies === "string"
-        ? JSON.parse(doc.proficiencies)
-        : doc.proficiencies,
-    ac: doc.ac,
-    proficiency: doc.proficiency,
-    passivePerception: doc.passivePerception,
-    speed: doc.speed,
-    initiative: doc.initiative,
-    inspiration: doc.inspiration,
-    deathSaves:
-      typeof doc.deathSaves === "string"
-        ? JSON.parse(doc.deathSaves)
-        : doc.deathSaves,
-    hitDice:
-      typeof doc.hitDice === "string" ? JSON.parse(doc.hitDice) : doc.hitDice,
-    feats: typeof doc.feats === "string" ? JSON.parse(doc.feats) : doc.feats,
-    languages: doc.languages,
-    notes: doc.notes,
-    inventory:
-      typeof doc.inventory === "string"
-        ? JSON.parse(doc.inventory)
-        : doc.inventory,
-    spells:
-      typeof doc.spells === "string" ? JSON.parse(doc.spells) : doc.spells,
+    $id: get<string | undefined>("$id"),
+    $createdAt: get<string | undefined>("$createdAt"),
+    $updatedAt: get<string | undefined>("$updatedAt"),
+    userId: get<string | undefined>("userId"),
+    teamId: (get<string | null | undefined>("teamId") ?? null),
+    id: get<string | undefined>("$id"),
+    sheetId: get<string | null | undefined>("sheetId") ?? null,
+    profilePicture: get<string | null | undefined>("profilePicture") ?? null,
+    name: get<string>("name"),
+    level: get<number>("level"),
+    identity: typeof get<unknown>("identity") === "string"
+      ? JSON.parse(get<string>("identity"))
+      : (get<unknown>("identity") as CharacterData["identity"]),
+    hp: typeof get<unknown>("hp") === "string"
+      ? JSON.parse(get<string>("hp"))
+      : (get<unknown>("hp") as CharacterData["hp"]),
+    abilities: typeof get<unknown>("abilities") === "string"
+      ? JSON.parse(get<string>("abilities"))
+      : (get<unknown>("abilities") as CharacterData["abilities"]),
+    proficiencies: typeof get<unknown>("proficiencies") === "string"
+      ? JSON.parse(get<string>("proficiencies"))
+      : (get<unknown>("proficiencies") as CharacterData["proficiencies"]),
+    ac: get<number | undefined>("ac"),
+    proficiency: get<number | undefined>("proficiency"),
+    passivePerception: get<number | undefined>("passivePerception"),
+    speed: get<number | undefined>("speed"),
+    initiative: get<number | undefined>("initiative"),
+    inspiration: get<number | undefined>("inspiration"),
+    deathSaves: typeof get<unknown>("deathSaves") === "string"
+      ? JSON.parse(get<string>("deathSaves"))
+      : (get<unknown>("deathSaves") as CharacterData["deathSaves"]),
+    hitDice: typeof get<unknown>("hitDice") === "string"
+      ? JSON.parse(get<string>("hitDice"))
+      : (get<unknown>("hitDice") as CharacterData["hitDice"]),
+    feats: typeof get<unknown>("feats") === "string"
+      ? JSON.parse(get<string>("feats"))
+      : (get<unknown>("feats") as CharacterData["feats"]),
+    languages: get<string[] | undefined>("languages"),
+    notes: get<string | undefined>("notes"),
+    inventory: typeof get<unknown>("inventory") === "string"
+      ? JSON.parse(get<string>("inventory"))
+      : (get<unknown>("inventory") as CharacterData["inventory"]),
+    spells: typeof get<unknown>("spells") === "string"
+      ? JSON.parse(get<string>("spells"))
+      : (get<unknown>("spells") as CharacterData["spells"]),
   };
 }

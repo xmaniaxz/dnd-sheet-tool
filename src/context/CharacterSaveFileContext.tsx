@@ -328,9 +328,16 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
             setDirty(false);
             setIsLoading(false);
             return;
+          } else {
+            // Document not found - clear the stored ID
+            window.localStorage.removeItem(DOCUMENT_ID_KEY);
+            documentIdRef.current = null;
           }
         } catch (error) {
           console.error("Failed to load from Appwrite, falling back to localStorage:", error);
+          // Clear the document ID if it failed to load
+          window.localStorage.removeItem(DOCUMENT_ID_KEY);
+          documentIdRef.current = null;
         }
       }
 
@@ -430,9 +437,10 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
 
   // Cleanup auto-save timer
   useEffect(() => {
+    const timer = autoSaveTimerRef.current;
     return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+      if (timer) {
+        clearTimeout(timer);
       }
     };
   }, []);
@@ -441,13 +449,22 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
     setData((prev) => {
       const next = structuredClone(prev);
       const segments = path.split(".");
-      let cursor: any = next;
+      let cursor: unknown = next;
       for (let i = 0; i < segments.length - 1; i++) {
         const key = segments[i];
-        if (cursor[key] == null || typeof cursor[key] !== "object") cursor[key] = {};
-        cursor = cursor[key];
+        if (typeof cursor !== "object" || cursor === null) {
+          break;
+        }
+        const obj = cursor as Record<string, unknown>;
+        if (obj[key] == null || typeof obj[key] !== "object") {
+          obj[key] = {};
+        }
+        cursor = obj[key];
       }
-      cursor[segments[segments.length - 1]] = value as any;
+      const lastKey = segments[segments.length - 1];
+      if (typeof cursor === "object" && cursor !== null) {
+        (cursor as Record<string, unknown>)[lastKey] = value;
+      }
       return next;
     });
   }, []);
@@ -468,7 +485,7 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
     try {
       if (documentIdRef.current) {
         // Update existing document
-        const updated = await characterService.update(documentIdRef.current, data);
+        await characterService.update(documentIdRef.current, data);
         lastSavedRef.current = data;
         setDirty(false);
       } else {

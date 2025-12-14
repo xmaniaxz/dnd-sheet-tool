@@ -116,7 +116,7 @@ function Input({ value, onChange }: { value: string; onChange: (v: string) => vo
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+      className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
     />
   );
 }

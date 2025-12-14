@@ -10,6 +10,8 @@ type ModalProps = {
   confirmText?: string;
   cancelText?: string;
   danger?: boolean;
+  size?: "default" | "large";
+  children?: React.ReactNode;
 };
 
 export default function Modal({
@@ -21,6 +23,8 @@ export default function Modal({
   confirmText = "Confirm",
   cancelText = "Cancel",
   danger = false,
+  size = "default",
+  children,
 }: ModalProps) {
   // Close on escape key
   useEffect(() => {
@@ -52,7 +56,7 @@ export default function Modal({
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-md panel rounded-2xl shadow-2xl border-2 overflow-hidden animate-scale-in"
+        className={`relative w-full ${size === "large" ? "max-w-4xl" : "max-w-md"} panel rounded-2xl shadow-2xl border-2 overflow-hidden animate-scale-in`}
         style={{ 
           borderColor: 'color-mix(in oklab, var(--accent) 30%, var(--border))' 
         }}
@@ -96,6 +100,9 @@ export default function Modal({
           <p className="text-center text-sm mb-6 leading-relaxed" style={{ color: 'color-mix(in oklab, var(--accent) 70%, var(--text))' }}>
             {message}
           </p>
+
+          {/* Children Content */}
+          {children}
 
           {/* Actions */}
           <div className="flex gap-3">

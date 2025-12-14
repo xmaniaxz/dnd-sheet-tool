@@ -2,7 +2,7 @@
 
 import "@/app/character/character.css";
 import { useEditMode } from "@/context/EditModeContext";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type HitPointsProps = {
   current: number;
@@ -35,37 +35,7 @@ function HitPoints({
   const [maxFocused, setMaxFocused] = useState(false);
   const [tempFocused, setTempFocused] = useState(false);
 
-  useEffect(() => {
-    if (!curFocused) setCurrentInput(String(current));
-  }, [current, curFocused]);
-  useEffect(() => {
-    if (!maxFocused) setMaxInput(String(max));
-  }, [max, maxFocused]);
-  useEffect(() => {
-    if (!tempFocused) setTempInput(String(temp ?? 0));
-  }, [temp, tempFocused]);
-
-  // When leaving edit mode, coerce empty/NaN to defaults and clamp
-  useEffect(() => {
-    if (!editMode) {
-      const nMax = Number(maxInput);
-      const finalMax = Number.isFinite(nMax) ? Math.max(1, nMax) : 1;
-
-      const nCur = Number(currentInput);
-      const finalCur = Number.isFinite(nCur) ? clamp(nCur, 0, finalMax) : 0;
-
-      const nTemp = Number(tempInput);
-      const finalTemp = Number.isFinite(nTemp) ? Math.max(0, nTemp) : 0;
-
-      onChangeMax?.(finalMax);
-      onChangeCurrent?.(finalCur);
-      onChangeTemp?.(finalTemp);
-
-      setMaxInput(String(finalMax));
-      setCurrentInput(String(finalCur));
-      setTempInput(String(finalTemp));
-    }
-  }, [editMode]);
+  // Effects removed; commit logic handled onBlur of each input
 
   const basePercent = max > 0 ? clamp((Math.min(current, max) / max) * 100, 0, 100) : 0;
   const tempPercent = max > 0 ? clamp((Math.max(0, temp) / max) * 100, 0, 100) : 0;
@@ -83,9 +53,17 @@ function HitPoints({
             <input
               type="number"
               min={0}
-              value={currentInput}
-              onFocus={() => setCurFocused(true)}
-              onBlur={() => setCurFocused(false)}
+              value={curFocused ? currentInput : String(current)}
+              onFocus={() => {
+                setCurFocused(true);
+                setCurrentInput(String(current));
+              }}
+              onBlur={() => {
+                setCurFocused(false);
+                const nCur = Number(currentInput);
+                const finalCur = Number.isFinite(nCur) ? clamp(nCur, 0, max) : 0;
+                onChangeCurrent?.(finalCur);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
@@ -102,9 +80,20 @@ function HitPoints({
             <input
               type="number"
               min={1}
-              value={maxInput}
-              onFocus={() => setMaxFocused(true)}
-              onBlur={() => setMaxFocused(false)}
+              value={maxFocused ? maxInput : String(max)}
+              onFocus={() => {
+                setMaxFocused(true);
+                setMaxInput(String(max));
+              }}
+              onBlur={() => {
+                setMaxFocused(false);
+                const nMax = Number(maxInput);
+                const finalMax = Number.isFinite(nMax) ? Math.max(1, nMax) : 1;
+                onChangeMax?.(finalMax);
+                // Also clamp current to new max
+                const finalCur = clamp(current, 0, finalMax);
+                onChangeCurrent?.(finalCur);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}
@@ -122,9 +111,17 @@ function HitPoints({
             <input
               type="number"
               min={0}
-              value={tempInput}
-              onFocus={() => setTempFocused(true)}
-              onBlur={() => setTempFocused(false)}
+              value={tempFocused ? tempInput : String(temp ?? 0)}
+              onFocus={() => {
+                setTempFocused(true);
+                setTempInput(String(temp ?? 0));
+              }}
+              onBlur={() => {
+                setTempFocused(false);
+                const nTemp = Number(tempInput);
+                const finalTemp = Number.isFinite(nTemp) ? Math.max(0, nTemp) : 0;
+                onChangeTemp?.(finalTemp);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
               }}

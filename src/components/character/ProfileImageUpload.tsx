@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { storage } from "@/lib/appwrite";
@@ -52,8 +53,10 @@ export default function ProfileImageUpload({
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     // Check file size (max 5MB)
@@ -241,11 +244,14 @@ export default function ProfileImageUpload({
               animate={{ opacity: 1, scale: 1 }}
               className="space-y-4"
             >
-              <div className="aspect-square w-full max-w-xs mx-auto rounded-xl overflow-hidden border-2">
-                <img
+              <div className="relative aspect-square w-full max-w-xs mx-auto rounded-xl overflow-hidden border-2">
+                <Image
                   src={preview}
                   alt="Preview"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 300px"
                   className="w-full h-full object-cover"
+                  unoptimized
                 />
               </div>
             </motion.div>

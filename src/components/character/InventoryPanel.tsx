@@ -4,12 +4,15 @@ import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
 import { motion } from "framer-motion";
 import type { Weapon, Item } from "@/context/CharacterSaveFileContext";
+import AutoResizeTextarea from "@/components/inputs/AutoResizeTextarea";
 
 export default function InventoryPanel() {
   const { data, setData, setByPath } = useCharacter();
   const { editMode } = useEditMode();
   const [showWeaponModal, setShowWeaponModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
+  const [editingWeaponIndex, setEditingWeaponIndex] = useState<number | null>(null);
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
 
   const removeWeapon = (idx: number) => {
     setData((prev) => {
@@ -49,7 +52,13 @@ export default function InventoryPanel() {
         ) : (
           <div className="space-y-2">
             {data.inventory.weapons.map((w, i) => (
-              <WeaponCard key={i} weapon={w} index={i} onRemove={removeWeapon} />
+              <WeaponCard
+                key={i}
+                weapon={w}
+                index={i}
+                onRemove={removeWeapon}
+                onEdit={(idx) => setEditingWeaponIndex(idx)}
+              />
             ))}
           </div>
         )}
@@ -73,7 +82,13 @@ export default function InventoryPanel() {
         ) : (
           <div className="space-y-2">
             {data.inventory.items?.map((item, i) => (
-              <ItemCard key={i} item={item} index={i} onRemove={removeItem} />
+              <ItemCard
+                key={i}
+                item={item}
+                index={i}
+                onRemove={removeItem}
+                onEdit={(idx) => setEditingItemIndex(idx)}
+              />
             ))}
           </div>
         )}
@@ -82,14 +97,11 @@ export default function InventoryPanel() {
       <div className="rounded-2xl panel-subtle border p-3">
         <h3 className="text-sm font-medium mb-1">Inventory Notes</h3>
         {editMode ? (
-          <textarea
+          <AutoResizeTextarea
             value={data.inventory.inventoryText}
-            onChange={(e) =>
-              setByPath("inventory.inventoryText", e.target.value)
-            }
-            rows={4}
+            onChange={(e) => setByPath("inventory.inventoryText", (e.target as HTMLTextAreaElement).value)}
+            minRows={4}
             placeholder="Backpack contents, tools, potions, etc."
-        className="w-full rounded-md  border border-zinc-700 px-3 py-2 text-sm  focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
           />
         ) : (
           <p className="text-sm  whitespace-pre-wrap">
@@ -104,11 +116,25 @@ export default function InventoryPanel() {
       {showItemModal && (
         <ItemModal onClose={() => setShowItemModal(false)} />
       )}
+      {editingWeaponIndex !== null && (
+        <WeaponModal
+          onClose={() => setEditingWeaponIndex(null)}
+          initial={data.inventory.weapons[editingWeaponIndex]}
+          index={editingWeaponIndex}
+        />
+      )}
+      {editingItemIndex !== null && (
+        <ItemModal
+          onClose={() => setEditingItemIndex(null)}
+          initial={data.inventory.items[editingItemIndex]}
+          index={editingItemIndex}
+        />
+      )}
     </div>
   );
 }
 
-function WeaponCard({ weapon, index, onRemove }: { weapon: Weapon; index: number; onRemove: (idx: number) => void }) {
+function WeaponCard({ weapon, index, onRemove, onEdit }: { weapon: Weapon; index: number; onRemove: (idx: number) => void; onEdit: (idx: number) => void }) {
   const { editMode } = useEditMode();
   
   return (
@@ -143,19 +169,27 @@ function WeaponCard({ weapon, index, onRemove }: { weapon: Weapon; index: number
           </div>
         </div>
         {editMode && (
-          <button
-            onClick={() => onRemove(index)}
-            className="text-xs rounded-md border border-zinc-600 px-2 py-0.5 hover:border-red-500 hover:text-red-400 cursor-pointer"
-          >
-            Remove
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(index)}
+              className="text-xs rounded-md border border-zinc-600 px-2 py-0.5 hover:border-(--accent) cursor-pointer"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onRemove(index)}
+              className="text-xs rounded-md border border-zinc-600 px-2 py-0.5 hover:border-red-500 hover:text-red-400 cursor-pointer"
+            >
+              Remove
+            </button>
+          </div>
         )}
       </div>
     </motion.div>
   );
 }
 
-function ItemCard({ item, index, onRemove }: { item: Item; index: number; onRemove: (idx: number) => void }) {
+function ItemCard({ item, index, onRemove, onEdit }: { item: Item; index: number; onRemove: (idx: number) => void; onEdit: (idx: number) => void }) {
   const { editMode } = useEditMode();
   
   return (
@@ -180,37 +214,64 @@ function ItemCard({ item, index, onRemove }: { item: Item; index: number; onRemo
         )}
       </div>
       {editMode && (
-        <button
-          onClick={() => onRemove(index)}
-          className="text-xs rounded-md border border-zinc-600 px-2 py-0.5 hover:border-red-500 hover:text-red-400 cursor-pointer ml-2"
-        >
-          Remove
-        </button>
+        <div className="flex gap-2 ml-2">
+          <button
+            onClick={() => onEdit(index)}
+            className="text-xs rounded-md border border-zinc-600 px-2 py-0.5 hover:border-(--accent) cursor-pointer"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onRemove(index)}
+            className="text-xs rounded-md border border-zinc-600 px-2 py-0.5 hover:border-red-500 hover:text-red-400 cursor-pointer"
+          >
+            Remove
+          </button>
+        </div>
       )}
     </motion.div>
   );
 }
 
-function WeaponModal({ onClose }: { onClose: () => void }) {
+function WeaponModal({ onClose, initial, index }: { onClose: () => void; initial?: Weapon; index?: number }) {
   const { setData } = useCharacter();
-  const [formData, setFormData] = useState({
-    name: "",
-    numDice: 1,
-    diceType: 8,
-    damageType: "slashing" as Weapon['damageType'],
-    attackBonus: 0,
-    magicalBonus: 0,
-    properties: "",
-    rangeNormal: 5,
-    rangeLong: 5,
-    equipped: false,
+  const [formData, setFormData] = useState(() => {
+    if (initial) {
+      const dmgMatch = /^\s*(\d+)d(\d+)\s*$/i.exec(initial.damage || "1d8");
+      const numDice = dmgMatch ? parseInt(dmgMatch[1]) : 1;
+      const diceType = dmgMatch ? parseInt(dmgMatch[2]) : 8;
+      return {
+        name: initial.name || "",
+        numDice,
+        diceType,
+        damageType: (initial.damageType || "slashing") as Weapon['damageType'],
+        attackBonus: initial.attackBonus ?? 0,
+        magicalBonus: 0,
+        properties: (initial.properties || []).join(", "),
+        rangeNormal: initial.range?.normal ?? 5,
+        rangeLong: initial.range?.long ?? (initial.range?.normal ?? 5),
+        equipped: !!initial.equipped,
+      };
+    }
+    return {
+      name: "",
+      numDice: 1,
+      diceType: 8,
+      damageType: "slashing" as Weapon['damageType'],
+      attackBonus: 0,
+      magicalBonus: 0,
+      properties: "",
+      rangeNormal: 5,
+      rangeLong: 5,
+      equipped: false,
+    };
   });
 
   const handleSubmit = () => {
     if (!formData.name.trim()) return;
     
     const weapon: Weapon = {
-      id: crypto.randomUUID(),
+      id: initial?.id || crypto.randomUUID(),
       name: formData.name,
       quantity: 1,
       category: 'weapon',
@@ -222,13 +283,21 @@ function WeaponModal({ onClose }: { onClose: () => void }) {
       equipped: formData.equipped,
     };
 
-    setData((prev) => ({
-      ...prev,
-      inventory: {
-        ...prev.inventory,
-        weapons: [...prev.inventory.weapons, weapon],
-      },
-    }));
+    if (initial != null && typeof index === 'number') {
+      setData((prev) => {
+        const next = structuredClone(prev);
+        next.inventory.weapons[index] = weapon;
+        return next;
+      });
+    } else {
+      setData((prev) => ({
+        ...prev,
+        inventory: {
+          ...prev.inventory,
+          weapons: [...prev.inventory.weapons, weapon],
+        },
+      }));
+    }
     onClose();
   };
 
@@ -244,7 +313,7 @@ function WeaponModal({ onClose }: { onClose: () => void }) {
       onMouseDown={handleBackdropClick}
     >
       <div className="card max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold">Add Weapon</h3>
+        <h3 className="text-lg font-semibold">{initial ? 'Edit Weapon' : 'Add Weapon'}</h3>
         
         <div className="space-y-3">
           <div>
@@ -379,7 +448,7 @@ function WeaponModal({ onClose }: { onClose: () => void }) {
         </div>
         
         <div className="flex gap-2">
-          <button onClick={handleSubmit} className="btn-primary flex-1">Add</button>
+          <button onClick={handleSubmit} className="btn-primary flex-1">{initial ? 'Save' : 'Add'}</button>
           <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
         </div>
       </div>
@@ -387,21 +456,21 @@ function WeaponModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ItemModal({ onClose }: { onClose: () => void }) {
+function ItemModal({ onClose, initial, index }: { onClose: () => void; initial?: Item; index?: number }) {
   const { setData } = useCharacter();
-  const [formData, setFormData] = useState({
-    name: "",
-    quantity: 1,
-    description: "",
-    category: 'misc' as Item['category'],
-    equipped: false,
-  });
+  const [formData, setFormData] = useState(() => ({
+    name: initial?.name ?? "",
+    quantity: initial?.quantity ?? 1,
+    description: initial?.description ?? "",
+    category: (initial?.category ?? 'misc') as Item['category'],
+    equipped: initial?.equipped ?? false,
+  }));
 
   const handleSubmit = () => {
     if (!formData.name.trim()) return;
     
     const item: Item = {
-      id: crypto.randomUUID(),
+      id: initial?.id || crypto.randomUUID(),
       name: formData.name,
       quantity: formData.quantity,
       description: formData.description || undefined,
@@ -409,13 +478,21 @@ function ItemModal({ onClose }: { onClose: () => void }) {
       equipped: formData.equipped,
     };
 
-    setData((prev) => ({
-      ...prev,
-      inventory: {
-        ...prev.inventory,
-        items: [...(prev.inventory.items || []), item],
-      },
-    }));
+    if (initial != null && typeof index === 'number') {
+      setData((prev) => {
+        const next = structuredClone(prev);
+        next.inventory.items[index] = item;
+        return next;
+      });
+    } else {
+      setData((prev) => ({
+        ...prev,
+        inventory: {
+          ...prev.inventory,
+          items: [...(prev.inventory.items || []), item],
+        },
+      }));
+    }
     onClose();
   };
 
@@ -431,7 +508,7 @@ function ItemModal({ onClose }: { onClose: () => void }) {
       onMouseDown={handleBackdropClick}
     >
       <div className="card max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold">Add Item</h3>
+        <h3 className="text-lg font-semibold">{initial ? 'Edit Item' : 'Add Item'}</h3>
         
         <div className="space-y-3">
           <div>
@@ -475,11 +552,11 @@ function ItemModal({ onClose }: { onClose: () => void }) {
           
           <div>
             <label className="text-xs opacity-60 mb-1 block">Description</label>
-            <textarea
+            <AutoResizeTextarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg text-sm panel-subtle border hover:border-(--accent)/50 transition-all focus:outline-none focus:border-(--accent)"
-              rows={3}
+              onChange={(e) => setFormData({ ...formData, description: (e.target as HTMLTextAreaElement).value })}
+              className="panel-subtle border hover:border-(--accent)/50 transition-all focus:outline-none focus:border-(--accent)"
+              minRows={3}
               placeholder="Optional description..."
             />
           </div>
@@ -496,7 +573,7 @@ function ItemModal({ onClose }: { onClose: () => void }) {
         </div>
         
         <div className="flex gap-2">
-          <button onClick={handleSubmit} className="btn-primary flex-1">Add</button>
+          <button onClick={handleSubmit} className="btn-primary flex-1">{initial ? 'Save' : 'Add'}</button>
           <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
         </div>
       </div>

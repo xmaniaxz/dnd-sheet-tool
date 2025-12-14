@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTeam } from '@/context/TeamContext';
 import { characterService } from '@/lib/characterService';
 import type { CharacterDocument } from '@/lib/characterService';
@@ -9,11 +9,7 @@ export function CharacterList() {
   const [characters, setCharacters] = useState<CharacterDocument[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadCharacters();
-  }, [teamId]);
-
-  const loadCharacters = async () => {
+  const loadCharacters = useCallback(async () => {
     setLoading(true);
     try {
       const chars = await characterService.list({ teamId: teamId || undefined });
@@ -23,7 +19,11 @@ export function CharacterList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [teamId]);
+
+  useEffect(() => {
+    loadCharacters();
+  }, [loadCharacters]);
 
   if (loading) {
     return <div className="p-4">Loading characters...</div>;

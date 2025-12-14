@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lostcausenetwork DnD Sheet Tool",
+  title: "LCN | DnD Sheet Tool",
   description: "A DnD character sheet tool for DnD campaigns.",
 };
 
@@ -28,6 +28,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <link rel="icon" href="/Logo.ico" sizes="any" />
         <Providers>{children}</Providers>
       </body>
     </html>

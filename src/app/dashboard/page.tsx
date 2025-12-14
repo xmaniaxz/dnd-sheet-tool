@@ -2,11 +2,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { account, avatars } from "@/lib/appwrite";
+import Image from "next/image";
 import type { Models } from "appwrite";
 import { characterService } from "@/lib/characterService";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import ThemePicker from "@/components/ui/ThemePicker";
 import Modal from "@/components/modals/Modal";
+import PdfImport from "@/components/PdfImport";
+import PdfReviewModal, { type CharacterData } from "@/components/modals/PdfReviewModal";
+import { parsePdfCharacterSheet } from "@/lib/pdfParser";
 
 type CharacterSummary = {
   $id: string;
@@ -52,10 +56,15 @@ export default function DashboardPage() {
     characterId: "",
     characterName: "",
   });
-
-  useEffect(() => {
-    loadUserAndCharacters();
-  }, []);
+  const [pdfReviewModal, setPdfReviewModal] = useState<{
+    isOpen: boolean;
+    data: CharacterData;
+    filename: string;
+  }>({
+    isOpen: false,
+    data: {},
+    filename: "",
+  });
 
   const loadUserAndCharacters = async () => {
     try {
@@ -94,6 +103,14 @@ export default function DashboardPage() {
     }
   };
 
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      // Defer to avoid synchronous setState in effect body
+      void loadUserAndCharacters();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const handleLogout = async () => {
     try {
       await account.deleteSession("current");
@@ -109,6 +126,39 @@ export default function DashboardPage() {
       window.localStorage.removeItem("character-document-id");
     }
     router.push("./character?new=true");
+  };
+
+  const handlePdfImport = async (file: File) => {
+    try {
+      // Parse the PDF to extract character data
+      const extractedData = await parsePdfCharacterSheet(file);
+      
+      // Show review modal with extracted data
+      setPdfReviewModal({
+        isOpen: true,
+        data: extractedData,
+        filename: file.name,
+      });
+    } catch (error) {
+      console.error('Failed to parse PDF:', error);
+      throw error;
+    }
+  };
+
+  const handleConfirmPdfImport = (data: CharacterData) => {
+    // Store the reviewed data in sessionStorage
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem('pending-character-data', JSON.stringify(data));
+    }
+    
+    // Close modal and navigate to character page
+    setPdfReviewModal({ isOpen: false, data: {}, filename: "" });
+    router.push('./character?import=pdf');
+  };
+
+  const handleCancelPdfImport = () => {
+    // Close modal without importing
+    setPdfReviewModal({ isOpen: false, data: {}, filename: "" });
   };
 
   const handleOpenCharacter = (characterId: string, characterName: string) => {
@@ -188,6 +238,14 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen theme-surface">
       {/* Modals */}
+      <PdfReviewModal
+        isOpen={pdfReviewModal.isOpen}
+        onClose={handleCancelPdfImport}
+        onConfirm={handleConfirmPdfImport}
+        extractedData={pdfReviewModal.data}
+        filename={pdfReviewModal.filename}
+      />
+      
       <Modal
         isOpen={openModal.isOpen}
         onClose={() =>
@@ -289,10 +347,13 @@ export default function DashboardPage() {
           {/* User Profile Card */}
           <div className="panel rounded-lg p-4 lg:p-5 mb-4 lg:mb-6 shadow-xl">
             <div className="flex items-center gap-3 mb-3">
-              <img
+              <Image
                 src={avatars.getInitials(user?.name || user?.email || "A").toString()}
                 alt={user?.name || user?.email || "User"}
+                width={48}
+                height={48}
                 className="w-10 h-10 lg:w-12 lg:h-12 rounded-full shadow-lg"
+                unoptimized
               />
               <div className="flex-1 min-w-0">
                 <p
@@ -365,14 +426,28 @@ export default function DashboardPage() {
         {/* Main Content Area */}
         <div className="flex-1 p-4 lg:p-8 overflow-auto">
           <div className="max-w-6xl mx-auto">
-            <h2
-              className="text-xl lg:text-2xl font-bold mb-4 lg:mb-6 font-serif"
-              style={{
-                color: "color-mix(in oklab, var(--accent) 95%, var(--text))",
-              }}
-            >
-              Your Party
-            </h2>
+            {/* Header with PDF Import */}
+            <div className="mb-6 lg:mb-8 flex items-center justify-between">
+              <div>
+                <h2
+                  className="text-xl lg:text-2xl font-bold font-serif"
+                  style={{
+                    color: "color-mix(in oklab, var(--accent) 95%, var(--text))",
+                  }}
+                >
+                  Your Party
+                </h2>
+                <p
+                  className="text-sm mt-1"
+                  style={{
+                    color: "color-mix(in oklab, var(--accent) 70%, var(--text))",
+                  }}
+                >
+                  Import a character sheet or create a new one
+                </p>
+              </div>
+              <PdfImport onImport={handlePdfImport} />
+            </div>
 
             {/* Characters Grid with Create New as a card */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-6">
@@ -455,10 +530,13 @@ export default function DashboardPage() {
                   >
                     {character.profilePicture ? (
                       <>
-                        <img
+                        <Image
                           src={character.profilePicture}
                           alt={character.name}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 400px"
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          unoptimized
                         />
                         <div
                           className="absolute inset-0"

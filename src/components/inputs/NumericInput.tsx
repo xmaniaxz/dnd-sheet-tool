@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useEditMode } from "@/context/EditModeContext";
+import { useState } from "react";
 
 type NumericInputProps = {
   value: number;
@@ -28,37 +27,28 @@ export default function NumericInput({
   normalize,
   defaultIfEmpty = 0,
 }: NumericInputProps) {
-  const { editMode } = useEditMode();
-
-  const [input, setInput] = useState<string>(String(value));
+  const [input, setInput] = useState<string>("");
   const [focused, setFocused] = useState(false);
-
-  // Keep input in sync with external value when not actively editing
-  useEffect(() => {
-    if (!focused) setInput(String(value));
-  }, [value, focused]);
-
-  // When edit mode turns off, coerce empty/NaN and apply normalization
-  useEffect(() => {
-    if (!editMode) {
-      const n = Number(input);
-      const next = Number.isFinite(n) ? n : defaultIfEmpty;
-      const finalVal = normalize ? normalize(next) : next;
-      onChange(finalVal);
-      setInput(String(finalVal));
-    }
-  }, [editMode]);
 
   return (
     <input
       type="number"
-      value={input}
+      value={focused ? input : String(value)}
       min={min}
       max={max}
       step={step}
       placeholder={placeholder}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onFocus={() => {
+        setFocused(true);
+        setInput(String(value));
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const n = Number(input);
+        const next = Number.isFinite(n) ? n : defaultIfEmpty;
+        const finalVal = normalize ? normalize(next) : next;
+        if (finalVal !== value) onChange(finalVal);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}

@@ -10,10 +10,13 @@
 
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, useCallback, memo, Suspense } from "react";
+import Image from "next/image";
+import { useState, useEffect, useRef, useCallback, memo, Suspense, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
+import type { Item, Weapon } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
+import { fuzzyMatchObject } from "@/lib/fuzzyMatch";
 import HitPoints from "@/components/character/HpBar";
 import DiceRoller from "@/components/dice/DiceRoller";
 import DeathSaves from "@/components/character/DeathSaves";
@@ -21,7 +24,6 @@ import StatsRow from "@/components/character/StatsRow";
 import NameLevel from "@/components/character/NameLevel";
 import ThemePicker from "@/components/ui/ThemePicker";
 import ThemeToggle from "@/components/ui/ThemeToggle";
-import LanguagesPanel from "@/components/character/LanguagesPanel";
 import NotesPanel from "@/components/character/NotesPanel";
 import IdentityPanel from "@/components/character/IdentityPanel";
 import CharacterInfoPanel from "@/components/character/CharacterInfoPanel";
@@ -44,6 +46,13 @@ type Feat = {
   lines: string[];
 };
 
+type ImportedInventoryItem = {
+  category: "weapon" | "armor" | "consumable" | "tool" | "treasure" | "misc";
+  name: string;
+  quantity: number;
+  damage?: string;
+};
+
 /* ============================================================================
  * MAIN CHARACTER PAGE COMPONENT
  * ============================================================================ */
@@ -51,22 +60,253 @@ type Feat = {
 function CharacterPageContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>("Feats");
-  const { data, setData, setByPath, loadCharacter, createNewCharacter, isLoading } = useCharacter();
+  const { data, setData, setByPath, loadCharacter, createNewCharacter } = useCharacter();
   const { editMode, toggleEditMode } = useEditMode();
 
   // Handle URL parameters for loading or creating characters
   useEffect(() => {
     const characterId = searchParams.get('id');
     const isNew = searchParams.get('new');
+    const importType = searchParams.get('import');
     
-    if (isNew === 'true') {
+    if (importType === 'pdf') {
+      // Handle PDF import
+      if (typeof window !== 'undefined') {
+        const characterDataStr = window.sessionStorage.getItem('pending-character-data');
+        
+        if (characterDataStr) {
+          // Clear the session storage
+          window.sessionStorage.removeItem('pending-character-data');
+
+          try {
+            const importedData = JSON.parse(characterDataStr);
+
+            const validClasses = [
+              "Barbarian",
+              "Bard",
+              "Cleric",
+              "Druid",
+              "Fighter",
+              "Monk",
+              "Paladin",
+              "Ranger",
+              "Rogue",
+              "Sorcerer",
+              "Warlock",
+              "Wizard"
+            ];
+
+            const validRaces = [
+              "Dragonborn",
+              "Dwarf",
+              "Elf",
+              "Gnome",
+              "Half-Elf",
+              "Halfling",
+              "Half-Orc",
+              "Human",
+              "Tiefling"
+            ];
+
+            const validAlignments = [
+              "Lawful Good",
+              "Neutral Good",
+              "Chaotic Good",
+              "Lawful Neutral",
+              "True Neutral",
+              "Chaotic Neutral",
+              "Lawful Evil",
+              "Neutral Evil",
+              "Chaotic Evil"
+            ];
+
+            const validBackgrounds = [
+              "Acolyte",
+              "Charlatan",
+              "Criminal",
+              "Entertainer",
+              "Folk Hero",
+              "Guild Artisan",
+              "Hermit",
+              "Noble",
+              "Outlander",
+              "Sage",
+              "Sailor",
+              "Soldier",
+              "Urchin"
+            ];
+
+            const matchedData = fuzzyMatchObject(importedData, {
+              class: validClasses,
+              race: validRaces,
+              alignment: validAlignments,
+              background: validBackgrounds
+            });
+            
+            // Create a new character first
+            createNewCharacter();
+            
+            // Populate with imported data
+            setTimeout(() => {
+              // Basic Info
+              if (matchedData.name) {
+                setByPath('name', matchedData.name);
+                setByPath('identity.characterName', matchedData.name);
+              }
+              if (matchedData.level) setByPath('level', matchedData.level);
+              if (matchedData.playerName) setByPath('identity.playerName', matchedData.playerName);
+              
+              // Identity
+              if (matchedData.class) setByPath('identity.class', matchedData.class);
+              if (matchedData.subClass) setByPath('identity.subClass', matchedData.subClass);
+              if (matchedData.race) setByPath('identity.race', matchedData.race);
+              if (matchedData.background) setByPath('identity.background', matchedData.background);
+              if (matchedData.alignment) setByPath('identity.alignment', matchedData.alignment);
+              if (importedData.experiencePoints) setByPath('identity.experience', String(importedData.experiencePoints));
+              if (importedData.age) setByPath('identity.age', importedData.age);
+              if (importedData.height) setByPath('identity.height', importedData.height);
+              if (importedData.weight) setByPath('identity.weight', importedData.weight);
+              if (importedData.eyes) setByPath('identity.eyes', importedData.eyes);
+              if (importedData.skin) setByPath('identity.skin', importedData.skin);
+              if (importedData.hair) setByPath('identity.hair', importedData.hair);
+              
+              // Personality & Background
+              if (importedData.personalityTraits) setByPath('identity.personalityTraits', importedData.personalityTraits);
+              if (importedData.ideals) setByPath('identity.ideals', importedData.ideals);
+              if (importedData.bonds) setByPath('identity.bonds', importedData.bonds);
+              if (importedData.flaws) setByPath('identity.flaws', importedData.flaws);
+              if (importedData.backstory) setByPath('identity.backstory', importedData.backstory);
+              if (importedData.allies) setByPath('identity.allies', importedData.allies);
+              if (importedData.appearance) setByPath('identity.appearance', importedData.appearance);
+              
+              // Ability scores
+              if (importedData.strength) setByPath('abilities.str', importedData.strength);
+              if (importedData.dexterity) setByPath('abilities.dex', importedData.dexterity);
+              if (importedData.constitution) setByPath('abilities.con', importedData.constitution);
+              if (importedData.intelligence) setByPath('abilities.int', importedData.intelligence);
+              if (importedData.wisdom) setByPath('abilities.wis', importedData.wisdom);
+              if (importedData.charisma) setByPath('abilities.cha', importedData.charisma);
+              
+              // Combat stats
+              if (importedData.proficiencyBonus) setByPath('proficiency', importedData.proficiencyBonus);
+              if (importedData.armorClass) setByPath('ac', importedData.armorClass);
+              if (importedData.initiative) setByPath('initiative', importedData.initiative);
+              if (importedData.speed) setByPath('speed', importedData.speed);
+              if (importedData.inspiration !== undefined) setByPath('inspiration', importedData.inspiration > 0);
+              if (importedData.passivePerception) setByPath('passivePerception', importedData.passivePerception);
+              
+              // Hit Points
+              if (importedData.hitPointMaximum) setByPath('hp.max', importedData.hitPointMaximum);
+              if (importedData.currentHitPoints !== undefined) setByPath('hp.current', importedData.currentHitPoints);
+              if (importedData.temporaryHitPoints) setByPath('hp.temp', importedData.temporaryHitPoints);
+              if (importedData.hitDice || importedData.totalHitDice) {
+                const diceString = importedData.totalHitDice || importedData.hitDice;
+                const match = String(diceString).match(/(\d+)d(\d+)/);
+                if (match) {
+                  setByPath('hitDice', {
+                    total: parseInt(match[1], 10),
+                    current: parseInt(match[1], 10),
+                    type: `d${match[2]}`
+                  });
+                }
+              }
+              
+              // Languages (only languages, not proficiencies)
+              if (importedData.languages) setByPath('languages', importedData.languages);
+              
+              // Proficiencies - add to notes since there's no dedicated proficiencies field
+              if (importedData.proficiencies) {
+                const profSection = `Proficiencies:\n${importedData.proficiencies}\n\n`;
+                const currentNotes = importedData.notes || '';
+                importedData.notes = profSection + currentNotes;
+              }
+              
+              // Feats
+              if (importedData.feats || importedData.featuresAndTraits) {
+                // Combine both feats and features/traits
+                const featsText = [importedData.feats, importedData.featuresAndTraits]
+                  .filter(Boolean)
+                  .join('\n\n');
+                const featLines = String(featsText).split('\n').filter(line => line.trim());
+                const featsArray = featLines.map(line => ({
+                  title: line.substring(0, 50),
+                  lines: [line]
+                }));
+                if (featsArray.length > 0) setByPath('feats', featsArray);
+              }
+              
+              // Notes
+              if (importedData.backstory) setByPath('notes', importedData.backstory);
+              
+              // Inventory - Process items that were categorized in the modal
+              if (importedData.inventoryItems && Array.isArray(importedData.inventoryItems)) {
+                const weapons: Weapon[] = [];
+                const items: Item[] = [];
+
+                importedData.inventoryItems.forEach((item: ImportedInventoryItem) => {
+                  if (item.category === 'weapon') {
+                    weapons.push({
+                      id: `weapon_${weapons.length}`,
+                      name: item.name,
+                      quantity: item.quantity,
+                      category: 'weapon' as const,
+                      damage: item.damage || '',
+                      equipped: true
+                    });
+                  } else {
+                    items.push({
+                      id: `item_${items.length}`,
+                      name: item.name,
+                      quantity: item.quantity,
+                      category: item.category
+                    });
+                  }
+                });
+                
+                if (weapons.length > 0) setByPath('inventory.weapons', weapons);
+                if (items.length > 0) setByPath('inventory.items', items);
+              }
+              
+              // Also store the raw text for reference
+              const allText = [importedData.attacksAndSpellcasting, importedData.equipment, importedData.treasure]
+                .filter(Boolean)
+                .join('\n\n');
+              if (allText) setByPath('inventory.inventoryText', allText);
+              
+              // Currency
+              if (importedData.copperPieces !== undefined) setByPath('inventory.coins.copper', importedData.copperPieces);
+              if (importedData.silverPieces !== undefined) setByPath('inventory.coins.silver', importedData.silverPieces);
+              if (importedData.goldPieces !== undefined) setByPath('inventory.coins.gold', importedData.goldPieces);
+              if (importedData.platinumPieces !== undefined) setByPath('inventory.coins.platinum', importedData.platinumPieces);
+              
+              // Spells - add to spellbook with proper structure
+              if (importedData.spells && Array.isArray(importedData.spells) && importedData.spells.length > 0) {
+                setByPath('spells.known', importedData.spells);
+                setByPath('spells.prepared', importedData.spells);
+              }
+              
+              // Spellcasting stats - store in spells object
+              if (importedData.spellcastingAbility) setByPath('spells.spellcastingAbility', importedData.spellcastingAbility);
+              if (importedData.spellSaveDC) setByPath('spells.spellSaveDC', importedData.spellSaveDC);
+              if (importedData.spellAttackBonus) setByPath('spells.spellAttackBonus', importedData.spellAttackBonus);
+            }, 100);
+          } catch (error) {
+            console.error('Failed to parse imported character data:', error);
+            createNewCharacter();
+          }
+        } else {
+          // No data found, just create new character
+          createNewCharacter();
+        }
+      }
+    } else if (isNew === 'true') {
       // Create a new character
       createNewCharacter();
     } else if (characterId) {
       // Load existing character
       loadCharacter(characterId);
     }
-  }, [searchParams, loadCharacter, createNewCharacter]);
+  }, [searchParams, loadCharacter, createNewCharacter, setByPath]);
 
   const handleTabChange = useCallback((tab: Tab) => {
     setActiveTab(tab);
@@ -306,7 +546,7 @@ function RightPanel({ activeTab }: { activeTab: Tab }) {
 function FeatsPanel() {
   const { data, setByPath } = useCharacter();
   const { editMode } = useEditMode();
-  const feats = (data.feats || []) as Feat[];
+  const feats = useMemo(() => (data.feats || []) as Feat[], [data.feats]);
 
   const addFeat = useCallback(() => {
     const newFeats = [...feats, { title: "New Feat", lines: [""] }];
@@ -439,15 +679,6 @@ function FeatsPanel() {
   );
 }
 
-function Placeholder({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="space-y-2">
-      <h2 className="text-lg sm:text-xl font-semibold">{title}</h2>
-      <p className="text-sm ">{text}</p>
-    </div>
-  );
-}
-
 /* -------------------------------- Portrait -------------------------------- */
 
 function Portrait({ className = "" }: { className?: string }) {
@@ -466,10 +697,14 @@ function Portrait({ className = "" }: { className?: string }) {
         <div className="w-full aspect-square absolute inset-0 rounded-full accent-glow glow-full glow-pulse" />
         {/* Inner */}
         <div className="relative flex h-full w-full items-center justify-center rounded-full ring-2 ring-(--border) overflow-hidden">
-          <img
+          <Image
             src={data.profilePicture || "/default_character.jpg"}
             alt={data.name || "Character"}
+            fill
+            sizes="(max-width: 768px) 100vw, 400px"
             className="object-cover h-full w-full"
+            priority
+            unoptimized
           />
           
           {/* Edit overlay - only shows in edit mode */}

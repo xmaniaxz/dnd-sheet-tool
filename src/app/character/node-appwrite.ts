@@ -1,4 +1,4 @@
-import { Client,TablesDB,Query ,Account,ID } from 'node-appwrite';
+import { Client,TablesDB,Query ,Account } from 'node-appwrite';
 import API from "@/../public/api.json";
 export const client = new Client();
 
@@ -55,7 +55,7 @@ export async function GetSpellsFromTable()
 
 export async function UploadAllSpells() {
     
-    const allSpells: { SpellName: string; School: string; CastingTime: string; Range: string; Duration: string; Components: string; Description: string; HigherLevel: string | String; Classes: string; SpellLevel: String; }[] = [];
+    const allSpells: { SpellName: string; School: string; CastingTime: string; Range: string; Duration: string; Components: string; Description: string; HigherLevel: string | string; Classes: string; SpellLevel: string; }[] = [];
     
     // Add cantrips (level 0)
     if (API.cantrips) {
@@ -71,9 +71,9 @@ export async function UploadAllSpells() {
                 Duration: spell.duration.toString(),
                 Components: spell.components.toString(),
                 Description: spell.description.toString(),
-                HigherLevel: spell.higherLevel as String || '',
+                HigherLevel: spell.higherLevel as string || '',
                 Classes: Array.isArray(spell.spelllists) ? spell.spelllists.join(', ') : spell.spelllists,
-                SpellLevel: 'cantrip' as String
+                SpellLevel: 'cantrip' as string
             });
         });
     }
@@ -93,7 +93,7 @@ export async function UploadAllSpells() {
                     Description: spell.description.toString(),
                     HigherLevel: spell.higherLevel.toString() || '',
                     Classes: Array.isArray(spell.spelllists) ? spell.spelllists.join(', ') : spell.spelllists,
-                    SpellLevel: level.toString() as String
+                    SpellLevel: level.toString() as string
                 });
             });
         }
@@ -126,13 +126,11 @@ export async function UploadAllSpells() {
     for (const spell of allSpells as SpellUploadData[]) {
         try {
             await tablesDB.createRow({
-                rowId: ID.unique(),
                 databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID as string,
                 tableId: process.env.NEXT_PUBLIC_APPWRITE_SPELLS_COLLECTION_ID as string,
                 data: spell
             });
             success++;
-            console.log(`✓ Uploaded: ${spell.SpellName} (Level ${spell.SpellLevel})`);
         } catch (error: unknown) {
             failed++;
             const errorMessage: string = error instanceof Error ? error.message : String(error);
@@ -141,26 +139,16 @@ export async function UploadAllSpells() {
         }
     }
     
-    console.log('\n=== Upload Complete ===');
-    console.log(`✓ Success: ${success}`);
-    console.log(`✗ Failed: ${failed}`);
-    
-    if (errors.length > 0) {
-        console.log('\nErrors:', errors);
-    }
-    
     return { total: allSpells.length, success, failed, errors };
 }
 
 export async function DeleteAllSpells() {
-    console.log('Starting deletion of all spells from Appwrite...');
     try {
-        const result = await tablesDB.deleteRows({
+        await tablesDB.deleteRows({
             databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID as string,
             tableId: process.env.NEXT_PUBLIC_APPWRITE_SPELLS_COLLECTION_ID as string,
             queries: [Query.limit(1000)]
         });
-        console.log('All spells deleted successfully:', result);
     } catch (error) {
         console.error('Error deleting spells:', error);
     }

@@ -14,7 +14,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
-import {DeleteAllSpells, GetSpellsFromTable, UploadAllSpells} from "@/app/character/node-appwrite";
+import { GetSpellsFromTable } from "@/app/character/node-appwrite";
 import ClassChangeModal from "@/components/modals/ClassChangeModal";
 import SpellSlotChangesModal from "@/components/modals/SpellSlotChangesModal";
 
@@ -194,7 +194,6 @@ export default function SpellsSection() {
   const [editingSlots, setEditingSlots] = useState<number | null>(null);
   const [showClassChangeModal, setShowClassChangeModal] = useState(false);
   const [showEditModeExitModal, setShowEditModeExitModal] = useState(false);
-  const [pendingEditModeValue, setPendingEditModeValue] = useState<boolean | null>(null);
   const [spells, setSpells] = useState<Spell[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
@@ -205,7 +204,6 @@ export default function SpellsSection() {
   const prevClassRef = useRef(data.identity.class);
   const prevLevelRef = useRef(data.level);
   const prevEditModeRef = useRef(editMode);
-  const editModeChangesRef = useRef<string[]>([]);
   const searchDebounceTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   /* ----------------------------------------------------------------------------
@@ -319,12 +317,11 @@ export default function SpellsSection() {
   };
 
   // Check if spell slots are dirty (modified from defaults)
-  const spellSlotsDirty = useMemo(() => {
+  const slotChanges = useMemo(() => {
     const spellData = data.spells as { slots?: SpellSlots } | undefined;
     const currentSlots = spellData?.slots || {};
     const defaultSlots = calculateSpellSlots(data.identity.class, data.identity.subClass, data.level);
-    
-    editModeChangesRef.current = [];
+    const changes: string[] = [];
     
     // Check if any max values differ from defaults
     for (let i = 1; i <= 9; i++) {
@@ -333,45 +330,52 @@ export default function SpellsSection() {
       const defaultMax = defaultSlots[level]?.max || 0;
       
       if (currentMax !== defaultMax) {
-        editModeChangesRef.current.push(`Level ${i}: ${currentMax} slots (default: ${defaultMax})`);
+        changes.push(`Level ${i}: ${currentMax} slots (default: ${defaultMax})`);
       }
     }
-    
-    return editModeChangesRef.current.length > 0;
+    return changes;
   }, [data.spells, data.identity.class, data.identity.subClass, data.level]);
+
+  const spellSlotsDirty = slotChanges.length > 0;
 
   // Detect edit mode exit with dirty spell slots or class change
   useEffect(() => {
     const wasEditMode = prevEditModeRef.current;
     const isEditMode = editMode;
-    
-    // Exiting edit mode
+    let scheduleId: number | null = null;
+
     if (wasEditMode && !isEditMode) {
       const currentClass = data.identity.class;
       const currentSubClass = data.identity.subClass;
       const prevClass = prevClassRef.current;
-      
-      // Check if class changed to different caster type
+
       if (currentClass !== prevClass && prevClass) {
         const prevCasterType = getCasterType(prevClass, data.identity.subClass);
         const currentCasterType = getCasterType(currentClass, currentSubClass);
-        
+
         if (prevCasterType !== currentCasterType) {
-          // Show class change modal
-          setShowClassChangeModal(true);
-          prevEditModeRef.current = editMode;
-          return; // Don't check for spell slot changes
+          scheduleId = requestAnimationFrame(() => {
+            setShowClassChangeModal(true);
+            prevEditModeRef.current = editMode;
+          });
+          return () => {
+            if (scheduleId !== null) cancelAnimationFrame(scheduleId);
+          };
         }
       }
-      
-      // No class change, check for spell slot modifications
+
       if (spellSlotsDirty) {
-        setShowEditModeExitModal(true);
-        setPendingEditModeValue(false);
+        scheduleId = requestAnimationFrame(() => {
+          setShowEditModeExitModal(true);
+        });
       }
     }
-    
+
     prevEditModeRef.current = editMode;
+
+    return () => {
+      if (scheduleId !== null) cancelAnimationFrame(scheduleId);
+    };
   }, [editMode, spellSlotsDirty, data.identity.class, data.identity.subClass]);
 
   // Detect class or level changes
@@ -384,7 +388,13 @@ export default function SpellsSection() {
 
     // Class changed - update the selected class filter
     if (currentClass !== prevClass && currentClass) {
-      setSelectedClass(currentClass);
+      // Extract base class name - first word only (e.g., "Artificer" from "Artificer Runic Dragoon, 8")
+      const baseClass = currentClass.split(/[\s,]+/)[0].trim();
+      const id = requestAnimationFrame(() => {
+        setSelectedClass(baseClass);
+      });
+      // ensure we cleanup the scheduled update if dependencies change
+      return () => cancelAnimationFrame(id);
       
       const prevCasterType = getCasterType(prevClass, data.identity.subClass);
       const currentCasterType = getCasterType(currentClass, currentSubClass);
@@ -410,7 +420,6 @@ export default function SpellsSection() {
         for (let i = 1; i <= 9; i++) {
           const level = i as keyof SpellSlots;
           if (defaultSlots[level]) {
-            const oldMax = currentSlots[level]?.max || 0;
             const newMax = defaultSlots[level]!.max;
             const oldCurrent = currentSlots[level]?.current || 0;
             
@@ -519,8 +528,8 @@ export default function SpellsSection() {
     setByPath("spells.slots", newSlots);
   };
 
-  // Use a spell slot
-  const useSpellSlot = (level: number) => {
+  // Spend a spell slot
+  const spendSpellSlot = (level: number) => {
     const slotLevel = level as keyof SpellSlots;
     const slot = spellSlots[slotLevel];
     if (slot && slot.current > 0) {
@@ -556,22 +565,19 @@ export default function SpellsSection() {
   };
   
   // Filter based on tab and level with memoization
-  const filteredSpells = useMemo(() => {
-    // Filter by tab
-    const baseSpells = activeTab === "spellbook" 
+  const filteredSpells = (() => {
+    const baseSpells = activeTab === "spellbook"
       ? spells.filter(spell => isSpellKnown(spell.name))
       : spells;
-    
-    // Filter by search query (debounced)
+
     const searchFilteredSpells = !debouncedSearchQuery || debouncedSearchQuery.trim() === ""
       ? baseSpells
-      : baseSpells.filter(spell => 
+      : baseSpells.filter(spell =>
           spell.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           spell.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           spell.school.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
         );
 
-    // Filter by class if not "all"
     const classFiltredSpells = selectedClass === "all"
       ? searchFilteredSpells
       : searchFilteredSpells.filter(spell => {
@@ -579,26 +585,22 @@ export default function SpellsSection() {
           const spellClasses = spell.classes.toLowerCase().split(',').map(c => c.trim());
           return spellClasses.includes(selectedClass.toLowerCase());
         });
-    
-    // Filter by level
-    return selectedLevel === "all" 
-      ? classFiltredSpells 
+
+    return selectedLevel === "all"
+      ? classFiltredSpells
       : classFiltredSpells.filter(spell => spell.level === selectedLevel);
-  }, [spells, activeTab, debouncedSearchQuery, selectedClass, selectedLevel, knownSpellNames]);
+  })();
 
   // Group spells by level for better organization
-  const spellsByLevel = useMemo(() => {
+  const spellsByLevel: Record<number, Spell[]> = (() => {
     const grouped: Record<number, Spell[]> = {};
     filteredSpells.forEach(spell => {
-      // Ensure level is a valid number
       const level = isNaN(spell.level) ? 0 : spell.level;
-      if (!grouped[level]) {
-        grouped[level] = [];
-      }
+      if (!grouped[level]) grouped[level] = [];
       grouped[level].push(spell);
     });
     return grouped;
-  }, [filteredSpells]);
+  })();
 
   const sortedLevels = Object.keys(spellsByLevel)
     .map(Number)
@@ -624,7 +626,7 @@ export default function SpellsSection() {
       {/* Edit Mode Exit Modal */}
       {showEditModeExitModal && (
         <SpellSlotChangesModal
-          changes={editModeChangesRef.current}
+          changes={slotChanges}
           onDiscard={handleDiscardChanges}
           onKeep={handleKeepChanges}
         />
@@ -710,7 +712,7 @@ export default function SpellsSection() {
                         key={i}
                         onClick={() => {
                           if (i < slot.current) {
-                            useSpellSlot(level);
+                            spendSpellSlot(level);
                           } else {
                             restoreSpellSlot(level);
                           }
@@ -867,7 +869,7 @@ export default function SpellsSection() {
                   onToggle={() => setExpandedSpell(expandedSpell === spell.name ? null : spell.name)}
                   onToggleKnown={() => toggleSpellKnown(spell.name)}
                   onTogglePrepared={() => toggleSpellPrepared(spell.name)}
-                  onCast={spell.level > 0 ? () => useSpellSlot(spell.level) : undefined}
+                  onCast={spell.level > 0 ? () => spendSpellSlot(spell.level) : undefined}
                   index={index}
                   activeTab={activeTab}
                   hasSlots={spell.level === 0 || (spellSlots[spell.level as keyof SpellSlots]?.current ?? 0) > 0}

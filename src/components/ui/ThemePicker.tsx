@@ -1,12 +1,11 @@
 "use client";
 import { useTheme } from "@/context/ThemeContext";
-import { useState } from "react";
 
 type Hue = { name: string; shades: [string, string, string] }; // [400,500,600]
 const HUES: Hue[] = [
   { name: "None",    shades: ["#9ca3af", "#6b7280", "#4b5563"] },
   { name: "Emerald", shades: ["#34d399", "#22c55e", "#16a34a"] },
-  { name: "Sky",     shades: ["#7dd3fc", "#38bdf8", "#0284c7"] },
+  // { name: "Sky",     shades: ["#7dd3fc", "#38bdf8", "#0284c7"] },
   { name: "Violet",  shades: ["#a78bfa", "#8b5cf6", "#6d28d9"] },
   { name: "Rose",    shades: ["#fb7185", "#f43f5e", "#e11d48"] },
   { name: "Amber",   shades: ["#fb923c", "#f97316", "#ea580c"] },
@@ -15,7 +14,6 @@ const HUES: Hue[] = [
 
 export default function ThemePicker() {
   const { theme, setAccent } = useTheme();
-  const [openHue, setOpenHue] = useState<string | null>(null);
   const lower = (s: string) => s.toLowerCase();
 
  return (
@@ -33,7 +31,7 @@ export default function ThemePicker() {
               aria-label={`Use ${name} theme`}
               title={name}
               aria-pressed={isActive}
-              onClick={(e) => { e.stopPropagation(); setOpenHue(name); setAccent(base); }}
+              onClick={(e) => { e.stopPropagation(); setAccent(base); }}
             >
               <span className="block w-full aspect-square rounded-full" style={{ backgroundColor: base }} />
             </button>

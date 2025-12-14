@@ -13,7 +13,7 @@
 
 "use client";
 
-import { useEffect, useState, useRef, useMemo, memo, useCallback } from "react";
+import { useEffect, useState, useRef, memo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import DiceBox from "@3d-dice/dice-box-threejs/dist/dice-box-threejs.es.js";
@@ -114,7 +114,7 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
   const [lastresult, setLastResult] = useState<string[]>([]);
   const [showDice, setShowDice] = useState(false);
   const [animateResult, setAnimateResult] = useState(false);
-  const [count, setCount] = useState(initialCount);
+  const [count] = useState(initialCount);
   const [advantageMode, setAdvantageMode] = useState<
     "none" | "advantage" | "disadvantage"
   >("none");
@@ -125,7 +125,17 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
    * ---------------------------------------------------------------------------- */
   const advantageModeRef = useRef<"none" | "advantage" | "disadvantage">("none");
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const boxRef = useRef<any>(null);
+  type DiceRollSet = { sides?: number; rolls?: Array<{ value?: number }> };
+  type DiceRollResult = { value?: number; total?: number; sets?: DiceRollSet[] };
+  type DiceBoxInstance = {
+    initialize: () => Promise<void>;
+    clear?: () => void;
+    updateConfig: (cfg: Record<string, unknown>) => Promise<void> | void;
+    roll: (notation: string) => Promise<void> | void;
+    onRoll?: unknown;
+  };
+
+  const boxRef = useRef<DiceBoxInstance | null>(null);
   const initializedRef = useRef(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRollLabelRef = useRef<string>("");
@@ -161,16 +171,16 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
       settleTimeout: 5000,
       offscreen: false,
       delay: 10,
-      onRollComplete: (result: any) => {
+      onRollComplete: (result: DiceRollResult) => {
         /* ---- PERCENTILE DICE HANDLING ---- */
-        const isPercentileRoll = Array.isArray(result?.sets) && 
+        const isPercentileRoll = Array.isArray(result?.sets) &&
           result.sets.length === 2 &&
-          result.sets.some((s: any) => s?.sides === 100) &&
-          result.sets.some((s: any) => s?.sides === 10);
+          result.sets.some((s: DiceRollSet) => s?.sides === 100) &&
+          result.sets.some((s: DiceRollSet) => s?.sides === 10);
 
-        if (isPercentileRoll) {
-          const d100Set = result.sets.find((s: any) => s?.sides === 100);
-          const d10Set = result.sets.find((s: any) => s?.sides === 10);
+        if (isPercentileRoll && result.sets) {
+          const d100Set = result.sets.find((s: DiceRollSet) => s?.sides === 100);
+          const d10Set = result.sets.find((s: DiceRollSet) => s?.sides === 10);
           
           const tensValue = Number(d100Set?.rolls?.[0]?.value || 0);
           const onesValue = Number(d10Set?.rolls?.[0]?.value || 0);
@@ -190,7 +200,7 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
           hideTimerRef.current = setTimeout(() => {
             setShowDice(false);
             try {
-              (boxRef.current as any)?.clear?.();
+              boxRef.current?.clear?.();
             } catch {}
           }, 1000);
           return;
@@ -201,7 +211,7 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
         if (advantageModeRef.current !== "none" && Array.isArray(result?.sets) && result.sets.length > 0) {
           const set = result.sets[0];
           const values: number[] = Array.isArray(set?.rolls)
-            ? set.rolls.map((r: any) => Number(r?.value)).filter((n: number) => !Number.isNaN(n))
+            ? set.rolls.map((r: { value?: number }) => Number(r?.value)).filter((n: number) => !Number.isNaN(n))
             : [];
           if (values.length >= 2) {
             const finalVal = advantageModeRef.current === "advantage" ? Math.max(values[0], values[1]) : Math.min(values[0], values[1]);
@@ -225,7 +235,7 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
           if (Array.isArray(result?.sets) && result.sets.length > 0) {
             const set = result.sets[0];
             if (Array.isArray(set?.rolls)) {
-              baseRoll = set.rolls.reduce((sum: number, r: any) => sum + Number(r?.value || 0), 0);
+              baseRoll = set.rolls.reduce((sum: number, r: { value?: number }) => sum + Number(r?.value || 0), 0);
               modifier = total - baseRoll;
             }
           }
@@ -251,13 +261,11 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
         hideTimerRef.current = setTimeout(() => {
           setShowDice(false);
           try {
-            (boxRef.current as any)?.clear?.();
+            boxRef.current?.clear?.();
           } catch {}
         }, 1000);
       },
     });
-    box.onRoll;
-
     boxRef.current = box;
 
     (async () => {
@@ -350,8 +358,9 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
     setPool((prev) => {
       const current = prev[die] ?? 0;
       if (current <= 1) {
-        const { [die]: _, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[die];
+        return next;
       }
       return { ...prev, [die]: current - 1 };
     });
@@ -359,8 +368,9 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
 
   const removeDieFromPool = (die: string) => {
     setPool((prev) => {
-      const { [die]: _, ...rest } = prev;
-      return rest;
+      const next = { ...prev };
+      delete next[die];
+      return next;
     });
   };
 
@@ -466,7 +476,6 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
         <h3 className="text-sm font-semibold uppercase tracking-wide mb-3">Advanced Dice Roller</h3>
         <AdvancedDiceControls 
           count={count}
-          setCount={setCount}
           advantageMode={advantageMode}
           setAdvantageMode={setAdvantageMode}
           pool={pool}
@@ -488,50 +497,49 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
 
 const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (notation: string, bonus: number, label: string) => void }) {
   const { data } = useCharacter();
-  
+  const { abilities, proficiencies, proficiency, feats, initiative, inventory } = data;
+
   const modifier = useCallback((score: number) => Math.floor((score - 10) / 2), []);
 
-  const rollAbilityCheck = useCallback((ability: keyof typeof data.abilities) => {
-    const abilityMod = modifier(data.abilities[ability]);
+  const rollAbilityCheck = useCallback((ability: keyof typeof abilities) => {
+    const abilityMod = modifier(abilities[ability]);
     onRoll("1d20", abilityMod, `${ability.toUpperCase()}`);
-  }, [data.abilities, modifier, onRoll]);
+  }, [abilities, modifier, onRoll]);
 
-  const rollSave = useCallback((ability: keyof typeof data.abilities) => {
-    const abilityMod = modifier(data.abilities[ability]);
-    const profBonus = data.proficiencies.saves[ability] ? (data.proficiency ?? 0) : 0;
+  const rollSave = useCallback((ability: keyof typeof abilities) => {
+    const abilityMod = modifier(abilities[ability]);
+    const profBonus = proficiencies.saves[ability] ? (proficiency ?? 0) : 0;
     onRoll("1d20", abilityMod + profBonus, `${ability.toUpperCase()} Save`);
-  }, [data.abilities, data.proficiencies.saves, data.proficiency, modifier, onRoll]);
+  }, [abilities, proficiency, proficiencies.saves, modifier, onRoll]);
 
   const rollInitiative = useCallback(() => {
-    const dexMod = modifier(data.abilities.dex);
-    const alertBonus = data.feats?.some(feat => 
-      feat.title.toLowerCase().includes('alert')
-    ) ? 5 : 0;
-    const initBonus = (data.initiative ?? 0) + dexMod + alertBonus;
+    const dexMod = modifier(abilities.dex);
+    const alertBonus = feats?.some(feat => feat.title.toLowerCase().includes('alert')) ? 5 : 0;
+    const initBonus = (initiative ?? 0) + dexMod + alertBonus;
     onRoll("1d20", initBonus, "Initiative");
-  }, [data.abilities.dex, data.feats, data.initiative, modifier, onRoll]);
+  }, [abilities.dex, feats, initiative, modifier, onRoll]);
 
-  const rollAttack = useCallback((weapon: typeof data.inventory.weapons[0]) => {
+  const rollAttack = useCallback((weapon: typeof inventory.weapons[0]) => {
     const isFinesse = weapon.properties?.includes('finesse');
     const isRanged = weapon.range && weapon.range.normal > 10;
     
     let abilityMod: number;
     if (isFinesse) {
-      abilityMod = Math.max(modifier(data.abilities.str), modifier(data.abilities.dex));
+      abilityMod = Math.max(modifier(abilities.str), modifier(abilities.dex));
     } else if (isRanged) {
-      abilityMod = modifier(data.abilities.dex);
+      abilityMod = modifier(abilities.dex);
     } else {
-      abilityMod = modifier(data.abilities.str);
+      abilityMod = modifier(abilities.str);
     }
     
-    const profBonus = data.proficiency ?? 0;
+    const profBonus = proficiency ?? 0;
     const weaponBonus = weapon.attackBonus ?? 0;
     const totalBonus = abilityMod + profBonus + weaponBonus;
     
-    onRoll("1d20", totalBonus, `${weapon.name} Attack`);
-  }, [data.abilities, data.proficiency, modifier, onRoll]);
+        onRoll("1d20", totalBonus, `${weapon.name} Attack`);
+      }, [abilities, proficiency, modifier, onRoll, inventory]);
 
-  const rollDamage = useCallback((weapon: typeof data.inventory.weapons[0]) => {
+  const rollDamage = useCallback((weapon: typeof inventory.weapons[0]) => {
     const match = weapon.damage.match(/(\d+)d(\d+)/);
     if (!match) return;
     
@@ -543,15 +551,15 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
     
     let abilityMod: number;
     if (isFinesse) {
-      abilityMod = Math.max(modifier(data.abilities.str), modifier(data.abilities.dex));
+      abilityMod = Math.max(modifier(abilities.str), modifier(abilities.dex));
     } else if (isRanged) {
-      abilityMod = modifier(data.abilities.dex);
+      abilityMod = modifier(abilities.dex);
     } else {
-      abilityMod = modifier(data.abilities.str);
+      abilityMod = modifier(abilities.str);
     }
     
-    onRoll(`${numDice}d${diceSize}`, abilityMod, `${weapon.name} Damage`);
-  }, [data.abilities, modifier, onRoll]);
+        onRoll(`${numDice}d${diceSize}`, abilityMod, `${weapon.name} Damage`);
+      }, [abilities, modifier, onRoll, inventory]);
 
   return (
     <div className="rounded-2xl panel border p-4 space-y-3">
@@ -571,13 +579,13 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
       <div>
         <h4 className="text-xs font-medium mb-2 opacity-70">Ability Checks</h4>
         <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(data.abilities) as Array<keyof typeof data.abilities>).map((ability) => (
+          {(Object.keys(abilities) as Array<keyof typeof abilities>).map((ability) => (
             <button
               key={ability}
               onClick={() => rollAbilityCheck(ability)}
               className="px-2 py-1.5 rounded border border-zinc-700 text-xs hover:border-zinc-600"
             >
-              {ability.toUpperCase()} {modifier(data.abilities[ability]) >= 0 ? '+' : ''}{modifier(data.abilities[ability])}
+              {ability.toUpperCase()} {modifier(abilities[ability]) >= 0 ? '+' : ''}{modifier(abilities[ability])}
             </button>
           ))}
         </div>
@@ -587,9 +595,9 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
       <div>
         <h4 className="text-xs font-medium mb-2 opacity-70">Saving Throws</h4>
         <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(data.abilities) as Array<keyof typeof data.abilities>).map((ability) => {
-            const abilityMod = modifier(data.abilities[ability]);
-            const profBonus = data.proficiencies.saves[ability] ? (data.proficiency ?? 0) : 0;
+          {(Object.keys(abilities) as Array<keyof typeof abilities>).map((ability) => {
+            const abilityMod = modifier(abilities[ability]);
+            const profBonus = proficiencies.saves[ability] ? (proficiency ?? 0) : 0;
             const total = abilityMod + profBonus;
             return (
               <button
@@ -605,11 +613,11 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
       </div>
       
       {/* Weapons */}
-      {data.inventory.weapons.length > 0 && (
+      {inventory.weapons.length > 0 && (
         <div>
           <h4 className="text-xs font-medium mb-2 opacity-70">Weapons</h4>
           <div className="space-y-2">
-            {data.inventory.weapons.map((weapon, idx) => (
+            {inventory.weapons.map((weapon, idx) => (
               <div key={idx} className="rounded-lg border border-zinc-700/90 p-2">
                 <div className="text-xs font-medium mb-1">{weapon.name}</div>
                 <div className="flex gap-2">
@@ -641,7 +649,6 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
 
 function AdvancedDiceControls({
   count,
-  setCount,
   advantageMode,
   setAdvantageMode,
   pool,
@@ -653,7 +660,6 @@ function AdvancedDiceControls({
   handleRollPool,
 }: {
   count: number;
-  setCount: (count: number) => void;
   advantageMode: "none" | "advantage" | "disadvantage";
   setAdvantageMode: (mode: "none" | "advantage" | "disadvantage") => void;
   pool: Record<string, number>;
@@ -710,7 +716,7 @@ function AdvancedDiceControls({
         {DiceOptions.map((die) => (
           <div key={die} className="flex items-center gap-2">
             <button
-            className="px-3 py-1.5 text-sm rounded-md border border-zinc-700   hover: hover:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-[var(--accent)] transition-colors"
+            className="px-3 py-1.5 text-sm rounded-md border border-zinc-700   hover: hover:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-(--accent) transition-colors"
               onClick={() => handleRoll(die)}
               title={`Quick roll ${count}${die}`}
             >

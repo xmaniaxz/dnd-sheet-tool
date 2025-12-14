@@ -24,14 +24,26 @@ const defaultTheme: Theme = {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
+// Load theme from localStorage synchronously to prevent flash
+function getInitialTheme(): Theme {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch {}
+  }
+  return defaultTheme;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(defaultTheme);
+  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
-      if (raw) setThemeState(JSON.parse(raw));
-    } catch {}
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
   }, []);
 
   useEffect(() => {
@@ -89,7 +101,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({ theme, setAccent, setTheme, setMode }), [theme]);
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  // Always provide context, but hide visually until mounted to prevent flash
+  return (
+    <ThemeContext.Provider value={value}>
+      <div style={!mounted ? { visibility: 'hidden' } : undefined}>{children}</div>
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

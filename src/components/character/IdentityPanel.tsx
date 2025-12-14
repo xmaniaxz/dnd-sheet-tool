@@ -1,6 +1,7 @@
 ﻿"use client";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
+import AutoResizeTextarea from "@/components/inputs/AutoResizeTextarea";
 
 export default function IdentityPanel() {
   const { data, setByPath } = useCharacter();
@@ -205,7 +206,7 @@ function Input({ value, onChange }: { value: string; onChange: (v: string) => vo
     <input
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+      className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
     />
   );
 }
@@ -217,12 +218,12 @@ function TextArea({ value, onChange, rows = 3, placeholder = "" }: {
   placeholder?: string;
 }) {
   return (
-    <textarea
+    <AutoResizeTextarea
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      rows={rows}
+      onChange={(e) => onChange((e.target as HTMLTextAreaElement).value)}
+      minRows={rows}
       placeholder={placeholder}
-      className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-none"
+      className="px-3 py-1.5"
     />
   );
 }

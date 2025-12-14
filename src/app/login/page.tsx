@@ -1,14 +1,16 @@
 "use client";
 
-import React, { use, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { account, ID } from "./appwrite";
 import { useRouter } from "next/navigation";
-import { ThemeProvider } from "@/context/ThemeContext";
+import type { Models } from "appwrite";
+
+type AuthUser = Pick<Models.User<Models.Preferences>, "name"> & Record<string, unknown>;
 
 export default function LoginPage() {
-  const [loggedInUser, setLoggedInUser] = useState<any>(null);
+  const [loggedInUser, setLoggedInUser] = useState<AuthUser | null>(null);
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -27,8 +29,8 @@ export default function LoginPage() {
       const user = await account.get();
       setLoggedInUser(user);
       setSuccess(true);
-    } catch (err: any) {
-      const message = err?.message || "Login failed. Please try again.";
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed. Please try again.";
       setError(message);
     } finally {
       setLoading(false);
@@ -55,7 +57,7 @@ export default function LoginPage() {
       try {
         const user = await account.get();
         setLoggedInUser(user);
-      } catch (err) {
+      } catch {
         setLoggedInUser(null);
       }
     };
@@ -66,11 +68,10 @@ export default function LoginPage() {
     if (loggedInUser) {
       router.push("./dashboard");
     }
-  }, [loggedInUser]);
+  }, [loggedInUser, router]);
 
   return (
     <div className="relative min-h-screen">
-      <ThemeProvider>
         {/* Background */}
         <div id="background" className="fixed inset-0 -z-10 overflow-hidden">
           <span className="absolute inset-0 bg-black/30" />
@@ -199,7 +200,6 @@ export default function LoginPage() {
             )}
           </div>
         </div>
-      </ThemeProvider>
     </div>
   );
 }

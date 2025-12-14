@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { setCurrentTeamId as setTeamIdInStorage } from '@/lib/characterService';
 
 type TeamContextValue = {
@@ -10,17 +10,12 @@ type TeamContextValue = {
 const TeamContext = createContext<TeamContextValue | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: ReactNode }) {
-  const [teamId, setTeamIdState] = useState<string | null>(null);
-
-  // Load team ID from localStorage on mount
-  useEffect(() => {
+  const [teamId, setTeamIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      const storedTeamId = window.localStorage.getItem('current-team-id');
-      if (storedTeamId) {
-        setTeamIdState(storedTeamId);
-      }
+      return window.localStorage.getItem('current-team-id');
     }
-  }, []);
+    return null;
+  });
 
   const setTeamId = (newTeamId: string | null) => {
     setTeamIdState(newTeamId);
