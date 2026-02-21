@@ -143,6 +143,17 @@ input[type="checkbox"] {
   border-color: var(--border);
 }
 
+select.panel-subtle {
+  background-color: var(--panel-subtle);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+select.panel-subtle option {
+  background-color: var(--panel);
+  color: var(--text);
+}
+
 /* Backpanel: large section containers distinct from panels */
 .backpanel {
   background: var(--backpanel, var(--surface));

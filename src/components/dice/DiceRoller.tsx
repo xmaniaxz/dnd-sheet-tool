@@ -13,94 +13,12 @@
 
 "use client";
 
-import { useEffect, useState, useRef, memo, useCallback } from "react";
+import { useEffect, useState, useRef, memo, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import DiceBox from "@3d-dice/dice-box-threejs/dist/dice-box-threejs.es.js";
+import { DICE_COLORS, DICE_OPTIONS, DICE_TEXTURES } from "@/components/dice/diceConfig";
 import "@/app/character/character.css";
-
-/* ============================================================================
- * DICE CONFIGURATION
- * ============================================================================ */
-
-const DiceOptions = ["d4", "d6", "d8", "d10", "d12", "d20", "d100"] as string[];
-
-// Random dice colors
-const colors = [
-  "#f6c928",
-  "#FFFFFF",
-  "#F9B333",
-  "#f8d84f",
-  "#f9b02d",
-  "#f43c04",
-  "#910200",
-  "#4c1009",
-  "#60E9FF",
-  "#214fa3",
-  "#3c6ac1",
-  "#253f70",
-  "#0b56e2",
-  "#09317a",
-  "#D6A8FF",
-  "#313866",
-  "#504099",
-  "#66409e",
-  "#934fc3",
-  "#c949fc",
-  "#A9FF70",
-  "#a6ff00",
-  "#83b625",
-  "#5ace04",
-  "#69f006",
-  "#b0f006",
-  "#93bc25",
-  "#FFC500",
-  "#F11602",
-  "#FFC000",
-  "#CDB800",
-  "#6F0000",
-  "#FFB5F5",
-  "#7FC9FF",
-  "#A17FFF",
-  "#ffffff",
-  "#000000",
-  "#F3C3C2",
-  "#EB8993",
-  "#8EA1D2",
-  "#7477AD",
-];
-
-// Dice texture options
-const textures = [
-  "cloudy",
-  "cloudy_2",
-  "fire",
-  "marble",
-  "water",
-  "ice",
-  "paper",
-  "speckles",
-  "glitter",
-  "glitter_2",
-  "stars",
-  "stainedglass",
-  "wood",
-  "metal",
-  "skulls",
-  "leopard",
-  "tiger",
-  "cheetah",
-  "dragon",
-  "lizard",
-  "bird",
-  "astral",
-  "bronze01",
-  "bronze02",
-  "bronze03",
-  "bronze03a",
-  "bronze03b",
-  "bronze04",
-];
 
 /* ============================================================================
  * MAIN DICE ROLLER COMPONENT
@@ -114,7 +32,7 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
   const [lastresult, setLastResult] = useState<string[]>([]);
   const [showDice, setShowDice] = useState(false);
   const [animateResult, setAnimateResult] = useState(false);
-  const [count] = useState(initialCount);
+  const count = initialCount;
   const [advantageMode, setAdvantageMode] = useState<
     "none" | "advantage" | "disadvantage"
   >("none");
@@ -123,8 +41,13 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
   /* ----------------------------------------------------------------------------
    * REFS FOR DICEBOX MANAGEMENT
    * ---------------------------------------------------------------------------- */
-  const advantageModeRef = useRef<"none" | "advantage" | "disadvantage">("none");
   const containerRef = useRef<HTMLDivElement | null>(null);
+  type ModeContext = {
+    mode: "advantage" | "disadvantage";
+    bonus: number;
+    label: string;
+    diceSpec: Array<{ count: number; sides: number }>;
+  };
   type DiceRollSet = { sides?: number; rolls?: Array<{ value?: number }> };
   type DiceRollResult = { value?: number; total?: number; sets?: DiceRollSet[] };
   type DiceBoxInstance = {
@@ -138,14 +61,121 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
   const boxRef = useRef<DiceBoxInstance | null>(null);
   const initializedRef = useRef(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingRollsRef = useRef(0);
   const lastRollLabelRef = useRef<string>("");
+  const modeContextRef = useRef<ModeContext | null>(null);
 
-  /* ----------------------------------------------------------------------------
-   * SYNC ADVANTAGE MODE REF
-   * ---------------------------------------------------------------------------- */
-  useEffect(() => {
-    advantageModeRef.current = advantageMode;
-  }, [advantageMode]);
+  const beginRoll = () => {
+    pendingRollsRef.current += 1;
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    setShowDice(true);
+  };
+
+  const completeRollLifecycle = () => {
+    setAnimateResult(false);
+    requestAnimationFrame(() => setAnimateResult(true));
+
+    pendingRollsRef.current = Math.max(0, pendingRollsRef.current - 1);
+    if (pendingRollsRef.current > 0) {
+      return;
+    }
+
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => {
+      setShowDice(false);
+      try {
+        boxRef.current?.clear?.();
+      } catch {}
+    }, 1000);
+  };
+
+  const formatSetBreakdown = useCallback((sets?: DiceRollSet[]) => {
+    if (!Array.isArray(sets) || sets.length === 0) {
+      return { text: "", total: 0, hasValues: false };
+    }
+
+    const parts: string[] = [];
+    let total = 0;
+
+    sets.forEach((set) => {
+      const sides = Number(set?.sides || 0);
+      const values = Array.isArray(set?.rolls)
+        ? set.rolls
+            .map((roll) => Number(roll?.value))
+            .filter((value) => !Number.isNaN(value))
+        : [];
+
+      if (values.length === 0 || sides <= 0) return;
+
+      total += values.reduce((sum, value) => sum + value, 0);
+      parts.push(`[${values.join(",")}]`);
+    });
+
+    return {
+      text: parts.join(" + "),
+      total,
+      hasValues: parts.length > 0,
+    };
+  }, []);
+
+  const parseDiceNotation = useCallback((notation: string) => {
+    const diceMatches = [...notation.matchAll(/(\d*)d(\d+)/g)];
+    if (diceMatches.length === 0) return null;
+
+    const diceSpec = diceMatches.map((match) => ({
+      count: Number(match[1] || 1),
+      sides: Number(match[2]),
+    }));
+
+    const modifierMatches = notation.replace(/(\d*)d(\d+)/g, "").match(/[+-]\d+/g);
+    const modifier = modifierMatches
+      ? modifierMatches.reduce((sum, val) => sum + Number(val), 0)
+      : 0;
+
+    return { diceSpec, modifier };
+  }, []);
+
+  const formatSingleRoll = useCallback((label: string, result: DiceRollResult) => {
+    const isPercentileRoll = Array.isArray(result?.sets) &&
+      result.sets.length === 2 &&
+      result.sets.some((s: DiceRollSet) => s?.sides === 100) &&
+      result.sets.some((s: DiceRollSet) => s?.sides === 10);
+
+    if (isPercentileRoll && result.sets) {
+      const d100Set = result.sets.find((s: DiceRollSet) => s?.sides === 100);
+      const d10Set = result.sets.find((s: DiceRollSet) => s?.sides === 10);
+      const tensValue = Number(d100Set?.rolls?.[0]?.value || 0);
+      const onesValue = Number(d10Set?.rolls?.[0]?.value || 0);
+
+      let percentileResult = tensValue + onesValue;
+      if (percentileResult === 0) percentileResult = 100;
+
+      const detail = `d100 (${tensValue} + ${onesValue}) = ${percentileResult}`;
+      const fullLabel = label ? `${label}: ${detail}` : detail;
+      return { total: percentileResult, detail, label: fullLabel };
+    }
+
+    const total = result?.value || result?.total || 0;
+    const breakdown = formatSetBreakdown(result?.sets);
+    const baseRoll = breakdown.hasValues ? breakdown.total : total;
+    const modifier = total - baseRoll;
+
+    let detail = "";
+    if (breakdown.hasValues) {
+      const modText = modifier !== 0 ? `${modifier >= 0 ? " + " : " - "}${Math.abs(modifier)}` : "";
+      detail = `${breakdown.text}${modText} = ${total}`;
+    } else if (modifier !== 0) {
+      detail = `(${baseRoll})${modifier >= 0 ? "+" : ""}${modifier} = ${total}`;
+    } else {
+      detail = `(${baseRoll}) = ${total}`;
+    }
+
+    const fullLabel = label ? `${label}: ${detail}` : detail;
+    return { total, detail, label: fullLabel };
+  }, [formatSetBreakdown]);
 
   /* ----------------------------------------------------------------------------
    * DICEBOX INITIALIZATION & ROLL HANDLER
@@ -172,98 +202,120 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
       offscreen: false,
       delay: 10,
       onRollComplete: (result: DiceRollResult) => {
-        /* ---- PERCENTILE DICE HANDLING ---- */
-        const isPercentileRoll = Array.isArray(result?.sets) &&
-          result.sets.length === 2 &&
-          result.sets.some((s: DiceRollSet) => s?.sides === 100) &&
-          result.sets.some((s: DiceRollSet) => s?.sides === 10);
+        const label = lastRollLabelRef.current;
+        const rollSummary = formatSingleRoll(label, result);
 
-        if (isPercentileRoll && result.sets) {
-          const d100Set = result.sets.find((s: DiceRollSet) => s?.sides === 100);
-          const d10Set = result.sets.find((s: DiceRollSet) => s?.sides === 10);
-          
-          const tensValue = Number(d100Set?.rolls?.[0]?.value || 0);
-          const onesValue = Number(d10Set?.rolls?.[0]?.value || 0);
-          
-          let percentileResult = tensValue + onesValue;
-          if (percentileResult === 0) percentileResult = 100;
-          
-          const finalStr = String(percentileResult);
-          const finalLabel = `d100 (${tensValue} + ${onesValue}) = ${finalStr}`;
-          setResult(finalStr);
-          setLastResult((prev) => [...prev, finalLabel]);
-          
-          setAnimateResult(false);
-          requestAnimationFrame(() => setAnimateResult(true));
-          
-          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-          hideTimerRef.current = setTimeout(() => {
-            setShowDice(false);
-            try {
-              boxRef.current?.clear?.();
-            } catch {}
-          }, 1000);
-          return;
-        }
+        if (modeContextRef.current) {
+          const { mode, bonus, diceSpec, label: modeLabel } = modeContextRef.current;
+          const modeTag = mode === "advantage" ? "adv" : "dis";
 
-        /* ---- ADVANTAGE/DISADVANTAGE HANDLING ---- */
-        const total = result?.value || result?.total || 0;
-        if (advantageModeRef.current !== "none" && Array.isArray(result?.sets) && result.sets.length > 0) {
-          const set = result.sets[0];
-          const values: number[] = Array.isArray(set?.rolls)
-            ? set.rolls.map((r: { value?: number }) => Number(r?.value)).filter((n: number) => !Number.isNaN(n))
-            : [];
-          if (values.length >= 2) {
-            const finalVal = advantageModeRef.current === "advantage" ? Math.max(values[0], values[1]) : Math.min(values[0], values[1]);
-            const finalStr = String(finalVal);
-            const finalLabel = `${lastRollLabelRef.current} = ${finalStr} (${advantageModeRef.current === "advantage" ? "adv" : "dis"}: ${values[0]}, ${values[1]})`;
-            setResult(finalStr);
+          const detailPartsA: string[] = [];
+          const detailPartsB: string[] = [];
+          let totalA = 0;
+          let totalB = 0;
+
+          const isPercentile =
+            diceSpec.length === 2 &&
+            diceSpec.some((spec) => spec.sides === 100) &&
+            diceSpec.some((spec) => spec.sides === 10);
+
+          if (isPercentile) {
+            const d100Set = result?.sets?.find((s) => Number(s?.sides) === 100);
+            const d10Set = result?.sets?.find((s) => Number(s?.sides) === 10);
+
+            const tensValues = Array.isArray(d100Set?.rolls)
+              ? d100Set.rolls.map((roll) => Number(roll?.value)).filter((val) => !Number.isNaN(val))
+              : [];
+            const onesValues = Array.isArray(d10Set?.rolls)
+              ? d10Set.rolls.map((roll) => Number(roll?.value)).filter((val) => !Number.isNaN(val))
+              : [];
+
+            const tensA = tensValues[0] ?? 0;
+            const tensB = tensValues[1] ?? tensA;
+            const onesA = onesValues[0] ?? 0;
+            const onesB = onesValues[1] ?? onesA;
+
+            const baseA = tensA + onesA;
+            const baseB = tensB + onesB;
+            totalA = baseA === 0 ? 100 : baseA;
+            totalB = baseB === 0 ? 100 : baseB;
+
+            totalA += bonus;
+            totalB += bonus;
+
+            const winner = mode === "advantage"
+              ? (totalA >= totalB ? totalA : totalB)
+              : (totalA <= totalB ? totalA : totalB);
+
+            const bonusText = bonus !== 0 ? ` ${bonus >= 0 ? "+" : "-"} ${Math.abs(bonus)}` : "";
+            const detailA = `d100 (${tensA} + ${onesA})${bonusText} = ${totalA}`;
+            const detailB = `d100 (${tensB} + ${onesB})${bonusText} = ${totalB}`;
+            const finalLabel = modeLabel
+              ? `${modeLabel}: ${detailA} vs ${detailB} => ${winner} (${modeTag})`
+              : `${detailA} vs ${detailB} => ${winner} (${modeTag})`;
+
+            setResult(String(winner));
             setLastResult((prev) => [finalLabel, ...prev]);
-          } else {
-            // Fallback
-            setResult(String(total));
-            const label = lastRollLabelRef.current ? `${lastRollLabelRef.current} = ${total}` : String(total);
-            setLastResult((prev) => [label, ...prev]);
+            modeContextRef.current = null;
+            completeRollLifecycle();
+            return;
           }
-        } else {
-          /* ---- NORMAL ROLL ---- */
-          // Extract base roll and modifier from the total
-          let baseRoll = total;
-          let modifier = 0;
-          
-          // Try to extract the actual dice roll value
-          if (Array.isArray(result?.sets) && result.sets.length > 0) {
-            const set = result.sets[0];
-            if (Array.isArray(set?.rolls)) {
-              baseRoll = set.rolls.reduce((sum: number, r: { value?: number }) => sum + Number(r?.value || 0), 0);
-              modifier = total - baseRoll;
+
+          diceSpec.forEach((spec) => {
+            const set = result?.sets?.find((s) => Number(s?.sides) === spec.sides);
+            const values = Array.isArray(set?.rolls)
+              ? set.rolls.map((roll) => Number(roll?.value)).filter((val) => !Number.isNaN(val))
+              : [];
+
+            if (values.length === 0) return;
+
+            const expected = spec.count * 2;
+            let first: number[] = [];
+            let second: number[] = [];
+
+            if (values.length >= expected) {
+              first = values.slice(0, spec.count);
+              second = values.slice(spec.count, spec.count * 2);
+            } else if (values.length >= 2) {
+              const half = Math.floor(values.length / 2);
+              first = values.slice(0, half);
+              second = values.slice(half, half * 2);
+            } else {
+              first = [values[0]];
+              second = [values[0]];
             }
-          }
-          
-          setResult(String(total));
-          
-          // Format: "STR: d20 (9)+8 = 17" or "STR: d20 (9) = 9" if no modifier
-          let label = lastRollLabelRef.current;
-          if (modifier !== 0) {
-            label = `${lastRollLabelRef.current}: (${baseRoll})${modifier >= 0 ? '+' : ''}${modifier} = ${total}`;
-          } else {
-            label = `${lastRollLabelRef.current}: (${baseRoll}) = ${total}`;
-          }
-          
-          setLastResult((prev) => [label, ...prev]);
+
+            totalA += first.reduce((sum, val) => sum + val, 0);
+            totalB += second.reduce((sum, val) => sum + val, 0);
+
+            detailPartsA.push(`[${first.join(",")}]`);
+            detailPartsB.push(`[${second.join(",")}]`);
+          });
+
+          totalA += bonus;
+          totalB += bonus;
+
+          const winner = mode === "advantage"
+            ? (totalA >= totalB ? totalA : totalB)
+            : (totalA <= totalB ? totalA : totalB);
+
+          const bonusText = bonus !== 0 ? ` ${bonus >= 0 ? "+" : "-"} ${Math.abs(bonus)}` : "";
+          const detailA = `${detailPartsA.join(" + ")}${bonusText} = ${totalA}`;
+          const detailB = `${detailPartsB.join(" + ")}${bonusText} = ${totalB}`;
+          const finalLabel = modeLabel
+            ? `${modeLabel}: ${detailA} vs ${detailB} => ${winner} (${modeTag})`
+            : `${detailA} vs ${detailB} => ${winner} (${modeTag})`;
+
+          setResult(String(winner));
+          setLastResult((prev) => [finalLabel, ...prev]);
+          modeContextRef.current = null;
+        } else {
+          setResult(String(rollSummary.total));
+          setLastResult((prev) => [rollSummary.label, ...prev]);
         }
         
         /* ---- POST-ROLL ANIMATION & CLEANUP ---- */
-        setAnimateResult(false);
-        requestAnimationFrame(() => setAnimateResult(true));
-        
-        if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = setTimeout(() => {
-          setShowDice(false);
-          try {
-            boxRef.current?.clear?.();
-          } catch {}
-        }, 1000);
+        completeRollLifecycle();
       },
     });
     boxRef.current = box;
@@ -271,19 +323,46 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
     (async () => {
       await box.initialize();
     })();
-  }, []);
+  }, [formatSingleRoll]);
 
   /* ----------------------------------------------------------------------------
    * QUICK ROLL HANDLER
    * ---------------------------------------------------------------------------- */
 
-  const handleQuickRoll = useCallback(async (notation: string, bonus: number, label: string) => {
-    setShowDice(true);
+  const rollWithMode = useCallback(async (notation: string, label: string, bonus: number) => {
+    lastRollLabelRef.current = label;
+
+    let rollNotation = notation;
+    if (advantageMode !== "none") {
+      const parsed = parseDiceNotation(notation);
+      if (parsed) {
+        const combinedBonus = bonus + parsed.modifier;
+        rollNotation = parsed.diceSpec
+          .map((spec) => `${spec.count * 2}d${spec.sides}`)
+          .join("+");
+        modeContextRef.current = {
+          mode: advantageMode,
+          bonus: combinedBonus,
+          label,
+          diceSpec: parsed.diceSpec,
+        };
+      } else {
+        rollNotation = bonus !== 0
+          ? `${notation}${bonus >= 0 ? "+" : ""}${bonus}`
+          : notation;
+      }
+    } else {
+      rollNotation = bonus !== 0
+        ? `${notation}${bonus >= 0 ? "+" : ""}${bonus}`
+        : notation;
+    }
+
+    beginRoll();
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    const randomTexture = textures[Math.floor(Math.random() * textures.length)];
-    
+
+    const randomColor = DICE_COLORS[Math.floor(Math.random() * DICE_COLORS.length)];
+    const randomTexture = DICE_TEXTURES[Math.floor(Math.random() * DICE_TEXTURES.length)];
+
     await boxRef.current?.updateConfig({
       shadows: true,
       sounds: true,
@@ -297,14 +376,13 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
         foreground: "#ffffff",
       },
     });
-    
-    // Store the label for the onRollComplete handler
-    lastRollLabelRef.current = `${label}`;
-    
-    // Roll the dice with bonus - DiceBox supports notation like "1d20+2"
-    const rollNotation = bonus !== 0 ? `${notation}${bonus >= 0 ? '+' : ''}${bonus}` : notation;
+
     await boxRef.current?.roll(rollNotation);
-  }, []);
+  }, [advantageMode, parseDiceNotation]);
+
+  const handleQuickRoll = useCallback(async (notation: string, bonus: number, label: string) => {
+    await rollWithMode(notation, label, bonus);
+  }, [rollWithMode]);
 
   /* ----------------------------------------------------------------------------
    * ROLL FUNCTIONS
@@ -312,38 +390,8 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
 
   // Single dice roll
   const handleRoll = async (die: string) => {
-    // Reset the hide timer
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = null;
-    }
-    
-    setShowDice(true);
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    const randomTexture = textures[Math.floor(Math.random() * textures.length)];
-    await boxRef.current?.updateConfig({
-      shadows: true,
-      sounds: true,
-      volume: 100,
-      sound_dieMaterial: "wood",
-      color_spotlight: "#FFFFFF",
-      light_intensity: 1,
-      theme_customColorset: {
-        background: randomColor,
-        texture: randomTexture,
-        foreground: "#ffffff",
-      },
-    });
-    if (advantageMode !== "none") {
-      // Roll two of the same die simultaneously
-      lastRollLabelRef.current = `1${die}`;
-      await boxRef.current?.roll(`2${die}`);
-    } else {
-      lastRollLabelRef.current = `${count}${die}`;
-      await boxRef.current?.roll(`${count}${die}`);
-    }
+    const notation = `${count}${die}`;
+    await rollWithMode(notation, notation, 0);
   };
 
   /* ----------------------------------------------------------------------------
@@ -381,42 +429,9 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
     const entries = Object.entries(pool).filter(([, qty]) => qty > 0);
     if (entries.length === 0) return;
 
-    // Reset the hide timer
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = null;
-    }
-
-    // If adv/dis and pool is exactly 1x of a single die, use advantage logic
-    if (advantageMode !== "none" && entries.length === 1 && entries[0][1] === 1) {
-      const die = entries[0][0];
-      await handleRoll(die);
-      return;
-    }
-
     // Build combined notation like "2d6+1d8"
     const notation = entries.map(([die, qty]) => `${qty}${die}`).join("+");
-    lastRollLabelRef.current = notation;
-
-    setShowDice(true);
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    const randomTexture = textures[Math.floor(Math.random() * textures.length)];
-    await boxRef.current?.updateConfig({
-      shadows: true,
-      sounds: true,
-      volume: 100,
-      sound_dieMaterial: "wood",
-      color_spotlight: "#FFFFFF",
-      light_intensity: 1,
-      theme_customColorset: {
-        background: randomColor,
-        texture: randomTexture,
-        foreground: "#ffffff",
-      },
-    });
-    await boxRef.current?.roll(notation);
+    await rollWithMode(notation, notation, 0);
   };
 
   /* ============================================================================
@@ -425,6 +440,30 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
 
   return (
     <div className="space-y-4">
+      <div className="rounded-2xl panel border px-4 py-3">
+        <div className="text-[11px] uppercase tracking-wide mb-2">Roll Mode</div>
+        <div className="inline-flex rounded-md overflow-hidden border border-zinc-700 text-xs">
+          <button
+            className={`px-2 py-1 transition-colors ${advantageMode === "none" ? "bg-(--accent)/30 text-white border border-(--accent) shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : "opacity-70 hover:opacity-100"}`}
+            onClick={() => setAdvantageMode("none")}
+          >
+            Normal
+          </button>
+          <button
+            className={`px-2 py-1 border-l border-zinc-700 transition-colors ${advantageMode === "advantage" ? "bg-(--accent)/30 text-white border border-(--accent) shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : "opacity-70 hover:opacity-100"}`}
+            onClick={() => setAdvantageMode("advantage")}
+          >
+            Advantage
+          </button>
+          <button
+            className={`px-2 py-1 border-l border-zinc-700 transition-colors ${advantageMode === "disadvantage" ? "bg-(--accent)/30 text-white border border-(--accent) shadow-[0_0_0_1px_rgba(255,255,255,0.08)]" : "opacity-70 hover:opacity-100"}`}
+            onClick={() => setAdvantageMode("disadvantage")}
+          >
+            Disadvantage
+          </button>
+        </div>
+      </div>
+
       {/* Quick Rolls Section */}
       <QuickRollButtons onRoll={handleQuickRoll} />
       
@@ -476,8 +515,6 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
         <h3 className="text-sm font-semibold uppercase tracking-wide mb-3">Advanced Dice Roller</h3>
         <AdvancedDiceControls 
           count={count}
-          advantageMode={advantageMode}
-          setAdvantageMode={setAdvantageMode}
           pool={pool}
           addDieToPool={addDieToPool}
           decrementDieInPool={decrementDieInPool}
@@ -498,6 +535,11 @@ export default function DiceBoxDemo({ count: initialCount }: { count: number }) 
 const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (notation: string, bonus: number, label: string) => void }) {
   const { data } = useCharacter();
   const { abilities, proficiencies, proficiency, feats, initiative, inventory } = data;
+
+  const equippedWeapons = useMemo(
+    () => inventory.weapons.filter((weapon) => weapon.equipped),
+    [inventory.weapons]
+  );
 
   const modifier = useCallback((score: number) => Math.floor((score - 10) / 2), []);
 
@@ -613,11 +655,13 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
       </div>
       
       {/* Weapons */}
-      {inventory.weapons.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium mb-2 opacity-70">Weapons</h4>
+      <div>
+        <h4 className="text-xs font-medium mb-2 opacity-70">Weapons</h4>
+        {equippedWeapons.length === 0 ? (
+          <p className="text-xs opacity-60">No weapons equipped.</p>
+        ) : (
           <div className="space-y-2">
-            {inventory.weapons.map((weapon, idx) => (
+            {equippedWeapons.map((weapon, idx) => (
               <div key={idx} className="rounded-lg border border-zinc-700/90 p-2">
                 <div className="text-xs font-medium mb-1">{weapon.name}</div>
                 <div className="flex gap-2">
@@ -637,8 +681,8 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 });
@@ -649,8 +693,6 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
 
 function AdvancedDiceControls({
   count,
-  advantageMode,
-  setAdvantageMode,
   pool,
   addDieToPool,
   decrementDieInPool,
@@ -660,8 +702,6 @@ function AdvancedDiceControls({
   handleRollPool,
 }: {
   count: number;
-  advantageMode: "none" | "advantage" | "disadvantage";
-  setAdvantageMode: (mode: "none" | "advantage" | "disadvantage") => void;
   pool: Record<string, number>;
   addDieToPool: (die: string) => void;
   decrementDieInPool: (die: string) => void;
@@ -676,44 +716,8 @@ function AdvancedDiceControls({
         Dice
       </div>
 
-      <div className="flex items-center gap-2 text-xs">
-        <span className="">Mode:</span>
-        <div className="inline-flex rounded-md overflow-hidden border border-zinc-700">
-          <button
-            className={`px-2 py-1 ${
-              advantageMode === "none"
-                ? " text-white"
-                : " "
-            }`}
-            onClick={() => setAdvantageMode("none")}
-          >
-            Normal
-          </button>
-          <button
-            className={`px-2 py-1 border-l border-zinc-700 ${
-              advantageMode === "advantage"
-                ? " text-white"
-                : " "
-            }`}
-            onClick={() => setAdvantageMode("advantage")}
-          >
-            Advantage
-          </button>
-          <button
-            className={`px-2 py-1 border-l border-zinc-700 ${
-              advantageMode === "disadvantage"
-                ? " text-white"
-                : " "
-            }`}
-            onClick={() => setAdvantageMode("disadvantage")}
-          >
-            Disadvantage
-          </button>
-        </div>
-      </div>
-
       <div className="flex flex-wrap gap-2">
-        {DiceOptions.map((die) => (
+        {DICE_OPTIONS.map((die) => (
           <div key={die} className="flex items-center gap-2">
             <button
             className="px-3 py-1.5 text-sm rounded-md border border-zinc-700   hover: hover:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-(--accent) transition-colors"

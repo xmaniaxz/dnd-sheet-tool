@@ -155,6 +155,40 @@ type CharacterContextValue = {
   createNewCharacter: () => Promise<void>;
 };
 
+function setAtPathImmutable<T extends Record<string, unknown>>(
+  source: T,
+  path: string,
+  value: unknown,
+): T {
+  const segments = path.split(".").filter(Boolean);
+  if (segments.length === 0) return source;
+
+  const cloneRoot = { ...source } as Record<string, unknown>;
+  let prevCursor: Record<string, unknown> = source;
+  let nextCursor: Record<string, unknown> = cloneRoot;
+
+  for (let i = 0; i < segments.length - 1; i++) {
+    const key = segments[i];
+    const prevChild = prevCursor[key];
+    const nextChild =
+      prevChild && typeof prevChild === "object"
+        ? Array.isArray(prevChild)
+          ? [...prevChild]
+          : { ...(prevChild as Record<string, unknown>) }
+        : {};
+
+    nextCursor[key] = nextChild;
+    prevCursor =
+      prevChild && typeof prevChild === "object"
+        ? (prevChild as Record<string, unknown>)
+        : {};
+    nextCursor = nextChild as Record<string, unknown>;
+  }
+
+  nextCursor[segments[segments.length - 1]] = value;
+  return cloneRoot as T;
+}
+
 const STORAGE_KEY = "character-data-v1";
 const DOCUMENT_ID_KEY = "character-document-id"; // Store the current document ID
 
@@ -365,13 +399,7 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
   // Mark as dirty when data changes (but not on initial load)
   useEffect(() => {
     if (!lastSavedRef.current || isLoading || isSaving) return;
-    try {
-      const prev = JSON.stringify(lastSavedRef.current);
-      const next = JSON.stringify(data);
-      if (prev === next) return; // no real change
-    } catch {
-      // if stringify fails for some reason, assume changed
-    }
+    if (lastSavedRef.current === data) return;
     
     // Write to localStorage immediately for offline capability
     writeToStorage(data);
@@ -446,27 +474,7 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
   }, []);
 
   const setByPath = useCallback((path: string, value: unknown) => {
-    setData((prev) => {
-      const next = structuredClone(prev);
-      const segments = path.split(".");
-      let cursor: unknown = next;
-      for (let i = 0; i < segments.length - 1; i++) {
-        const key = segments[i];
-        if (typeof cursor !== "object" || cursor === null) {
-          break;
-        }
-        const obj = cursor as Record<string, unknown>;
-        if (obj[key] == null || typeof obj[key] !== "object") {
-          obj[key] = {};
-        }
-        cursor = obj[key];
-      }
-      const lastKey = segments[segments.length - 1];
-      if (typeof cursor === "object" && cursor !== null) {
-        (cursor as Record<string, unknown>)[lastKey] = value;
-      }
-      return next;
-    });
+    setData((prev) => setAtPathImmutable(prev as Record<string, unknown>, path, value) as CharacterData);
   }, []);
 
   const reset = useCallback(() => {

@@ -3,6 +3,22 @@ import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
 import NumericInput from "@/components/inputs/NumericInput";
 
+const ALL_CLASSES = [
+  "Artificer",
+  "Barbarian",
+  "Bard",
+  "Cleric",
+  "Druid",
+  "Fighter",
+  "Monk",
+  "Paladin",
+  "Ranger",
+  "Rogue",
+  "Sorcerer",
+  "Warlock",
+  "Wizard",
+] as const;
+
 export default function NameLevel() {
   const { data, setByPath } = useCharacter();
   const { editMode } = useEditMode();
@@ -37,13 +53,21 @@ export default function NameLevel() {
               className="input w-20 sm:w-24 text-xs sm:text-sm px-2 py-1"
             />
             <span className="mx-1 leading-none text-zinc-500">|</span>
-            <input
-              type="text"
-              placeholder="Class"
+            <select
               value={identity.class}
               onChange={(e) => setByPath("identity.class", e.target.value)}
-              className="input w-20 sm:w-24 text-xs sm:text-sm px-2 py-1"
-            />
+              className="w-24 sm:w-28 panel-subtle border rounded-md appearance-auto text-xs sm:text-sm px-2 py-1 focus:outline-none focus:ring-1 focus:ring-(--accent)"
+            >
+              <option value="">Class</option>
+              {ALL_CLASSES.map((className) => (
+                <option key={className} value={className}>
+                  {className}
+                </option>
+              ))}
+              {!!identity.class && !ALL_CLASSES.includes(identity.class as (typeof ALL_CLASSES)[number]) && (
+                <option value={identity.class}>{identity.class}</option>
+              )}
+            </select>
             <span className="mx-1 leading-none text-zinc-500">|</span>
             <input
               type="text"

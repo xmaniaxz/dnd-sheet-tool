@@ -2,6 +2,22 @@
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
 
+const ALL_CLASSES = [
+  "Artificer",
+  "Barbarian",
+  "Bard",
+  "Cleric",
+  "Druid",
+  "Fighter",
+  "Monk",
+  "Paladin",
+  "Ranger",
+  "Rogue",
+  "Sorcerer",
+  "Warlock",
+  "Wizard",
+] as const;
+
 export default function CharacterInfoPanel() {
   const { data, setByPath } = useCharacter();
   const { editMode } = useEditMode();
@@ -45,10 +61,20 @@ export default function CharacterInfoPanel() {
         
         <Field label="Class">
           {editMode ? (
-            <Input
+            <Select
               value={data.identity.class}
               onChange={(v) => setByPath("identity.class", v)}
-            />
+            >
+              <option value="">Select class</option>
+              {ALL_CLASSES.map((className) => (
+                <option key={className} value={className}>
+                  {className}
+                </option>
+              ))}
+              {!!data.identity.class && !ALL_CLASSES.includes(data.identity.class as (typeof ALL_CLASSES)[number]) && (
+                <option value={data.identity.class}>{data.identity.class}</option>
+              )}
+            </Select>
           ) : (
             <Read>{data.identity.class}</Read>
           )}
@@ -118,6 +144,26 @@ function Input({ value, onChange }: { value: string; onChange: (v: string) => vo
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-md border border-zinc-700 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
     />
+  );
+}
+
+function Select({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full panel-subtle border rounded-md appearance-auto px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-(--accent)"
+    >
+      {children}
+    </select>
   );
 }
 

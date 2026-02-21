@@ -1,44 +1,58 @@
 ﻿"use client";
+import { memo, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
 import NumericInput from "@/components/inputs/NumericInput";
 export default function StatsRow() {
   const { data, setByPath } = useCharacter();
-  
-  const calcInitiative = () => {
-    const dexMod = Math.floor((data.abilities.dex - 10) / 2);
-    const alertBonus = data.feats?.some(feat => 
-      feat.title.toLowerCase().includes('alert')
-    ) ? 5 : 0;
-    return dexMod + alertBonus;
-  };
+  const { editMode } = useEditMode();
 
-  const getInitiativeBreakdown = () => {
-    const dexMod = Math.floor((data.abilities.dex - 10) / 2);
-    const alertBonus = data.feats?.some(feat => 
-      feat.title.toLowerCase().includes('alert')
-    ) ? 5 : 0;
-    const base = data.initiative ?? 0;
-    
-    const parts = [];
+  const dexMod = useMemo(() => Math.floor((data.abilities.dex - 10) / 2), [data.abilities.dex]);
+  const wisMod = useMemo(() => Math.floor((data.abilities.wis - 10) / 2), [data.abilities.wis]);
+  const hasAlert = useMemo(
+    () => !!data.feats?.some((feat) => feat.title.toLowerCase().includes("alert")),
+    [data.feats],
+  );
+  const alertBonus = hasAlert ? 5 : 0;
+  const autoInitiative = dexMod + alertBonus;
+  const hasInitiativeOverride = typeof data.initiative === "number";
+  const effectiveInitiative = hasInitiativeOverride ? (data.initiative ?? autoInitiative) : autoInitiative;
+
+  const perceptionProficiency = data.proficiency ?? 0;
+  const isPerceptionProficient = !!data.proficiencies?.skills?.perception;
+  const passivePerception = 10 + wisMod + (isPerceptionProficient ? perceptionProficiency : 0);
+
+  const initiativeBreakdown = useMemo(() => {
+    const parts: string[] = [];
     parts.push(`DEX: ${dexMod >= 0 ? '+' : ''}${dexMod}`);
     if (alertBonus > 0) parts.push(`Alert: +${alertBonus}`);
-    
-    return parts.join(' + ');
-  };
+    parts.push(`= ${autoInitiative >= 0 ? '+' : ''}${autoInitiative}`);
+    if (hasInitiativeOverride) {
+      parts.push(`(Override: ${effectiveInitiative >= 0 ? '+' : ''}${effectiveInitiative})`);
+    }
 
-  const getPassivePerceptionBreakdown = () => {
-    const wisMod = Math.floor((data.abilities.wis - 10) / 2);
-    const prof = data.proficiency ?? 0;
-    const isProf = !!data.proficiencies?.skills?.perception;
-    
+    return parts.join(' + ');
+  }, [dexMod, alertBonus, autoInitiative, hasInitiativeOverride, effectiveInitiative]);
+
+  const passivePerceptionBreakdown = useMemo(() => {
     const parts = ['Base: 10'];
     parts.push(`WIS: ${wisMod >= 0 ? '+' : ''}${wisMod}`);
-    if (isProf) parts.push(`Prof: +${prof}`);
-    
+    if (isPerceptionProficient) parts.push(`Prof: +${perceptionProficiency}`);
+    parts.push(`= ${passivePerception}`);
+
     return parts.join(' + ');
-  };
+  }, [wisMod, isPerceptionProficient, perceptionProficiency, passivePerception]);
+
+  const handleAcChange = useCallback((v: number) => setByPath("ac", v), [setByPath]);
+  const handleSpeedChange = useCallback((v: number) => setByPath("speed", v), [setByPath]);
+  const handleInitiativeChange = useCallback((v: number) => setByPath("initiative", v), [setByPath]);
+  const handleResetInitiative = useCallback(() => setByPath("initiative", undefined), [setByPath]);
+  const handleHitDiceChange = useCallback((v: number) => setByPath("hitDice.current", v), [setByPath]);
+  const handleInspirationToggle = useCallback(
+    () => setByPath("inspiration", !(data.inspiration ?? false)),
+    [setByPath, data.inspiration],
+  );
 
   return (
     <div className="space-y-3">
@@ -46,17 +60,16 @@ export default function StatsRow() {
         <StatShield
           value={data.ac ?? 0}
           label="Armor Class"
-          onChange={(v) => setByPath("ac", v)}
+          onChange={handleAcChange}
         />
         <StatRect
           value={data.proficiency ?? 0}
           label="Proficiency"
         />
         <StatRect
-          value={data.passivePerception ?? 0}
+          value={passivePerception}
           label="Passive perception"
-          onChange={(v) => setByPath("passivePerception", v)}
-          tooltip={getPassivePerceptionBreakdown()}
+          tooltip={passivePerceptionBreakdown}
         />
       </div>
       
@@ -64,24 +77,30 @@ export default function StatsRow() {
         <StatRect
           value={data.speed ?? 30}
           label="Speed"
-          onChange={(v) => setByPath("speed", v)}
+          onChange={handleSpeedChange}
         />
         <StatRect
-          value={calcInitiative()}
+          value={effectiveInitiative}
           label="Initiative"
-          tooltip={getInitiativeBreakdown()}
+          onChange={handleInitiativeChange}
+          tooltip={initiativeBreakdown}
+          onReset={hasInitiativeOverride ? handleResetInitiative : undefined}
         />
         <StatRect
           value={data.hitDice?.current ?? 0}
           label={`Hit Dice (${data.hitDice?.type ?? "d8"})`}
-          onChange={(v) => setByPath("hitDice.current", v)}
+          onChange={handleHitDiceChange}
         />
-        <InspirationToggle />
+        <InspirationToggle
+          hasInspiration={data.inspiration ?? false}
+          editMode={editMode}
+          onToggle={handleInspirationToggle}
+        />
       </div>
     </div>
   );
 }
-function StatShield({
+const StatShield = memo(function StatShield({
   value,
   label,
   onChange,
@@ -106,7 +125,7 @@ function StatShield({
           defaultIfEmpty={0}
           normalize={(n) => Math.max(0, n)}
           onChange={(v) => onChange?.(v)}
-          className="w-14 text-center rounded-md  border border-zinc-700 px-2 py-0.5 text-xs  focus:outline-none focus:ring-1 focus:ring-(--accent)"
+          className="w-16 h-8 text-center rounded-lg border border-zinc-700 px-2 text-sm leading-none focus:outline-none focus:ring-1 focus:ring-(--accent)"
         />
       ) : (
         <span className="text-2xl font-semibold">{value}</span>
@@ -115,17 +134,20 @@ function StatShield({
       <div className="mt-2 text-[11px] uppercase tracking-wide  text-center px-2">{label}</div>
     </motion.div>
   );
-}
-function StatRect({
+});
+
+const StatRect = memo(function StatRect({
   value,
   label,
   onChange,
   tooltip,
+  onReset,
 }: {
   value: number;
   label: string;
   onChange?: (n: number) => void;
   tooltip?: string;
+  onReset?: () => void;
 }) {
   const { editMode } = useEditMode();
   return (
@@ -140,12 +162,23 @@ function StatRect({
           value={value}
           defaultIfEmpty={0}
           onChange={(v) => onChange?.(v)}
-          className="w-16 text-center rounded-md  border border-zinc-700 px-2 py-0.5 text-xs  focus:outline-none focus:ring-1 focus:ring-(--accent)"
+          className="w-16 h-8 text-center rounded-lg border border-zinc-700 px-2 text-sm leading-none focus:outline-none focus:ring-1 focus:ring-(--accent)"
         />
       ) : (
         <div className="text-2xl font-semibold">{value}</div>
       )}
       <div className="mt-2 text-[11px] uppercase tracking-wide  text-center px-2">{label}</div>
+
+      {editMode && onReset && (
+        <button
+          onClick={onReset}
+          className="absolute top-1.5 right-1.5 h-5 min-w-5 px-1.5 rounded-md border border-white/20 hover:border-(--accent)/60 hover:text-(--accent) transition text-[10px] leading-none"
+          title="Reset to auto-calculated value"
+          aria-label="Reset to auto-calculated value"
+        >
+          ↺
+        </button>
+      )}
       
       {tooltip && !editMode && (
         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-2 bg-zinc-900 text-white text-xs rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10 shadow-lg border border-zinc-700">
@@ -155,12 +188,17 @@ function StatRect({
       )}
     </motion.div>
   );
-}
+});
 
-function InspirationToggle() {
-  const { data, setByPath } = useCharacter();
-  const { editMode } = useEditMode();
-  const hasInspiration = data.inspiration ?? false;
+const InspirationToggle = memo(function InspirationToggle({
+  hasInspiration,
+  editMode,
+  onToggle,
+}: {
+  hasInspiration: boolean;
+  editMode: boolean;
+  onToggle: () => void;
+}) {
 
   return (
     <motion.div
@@ -170,7 +208,7 @@ function InspirationToggle() {
       className="flex flex-col items-center justify-center rounded-2xl panel-alt border py-3"
     >
       <button
-        onClick={() => setByPath("inspiration", !hasInspiration)}
+        onClick={onToggle}
         className={`h-12 w-12 rounded-full border-2 transition-all ${
           hasInspiration
             ? "bg-(--accent) border-(--accent) shadow-lg"
@@ -186,4 +224,4 @@ function InspirationToggle() {
       </div>
     </motion.div>
   );
-}
+});
