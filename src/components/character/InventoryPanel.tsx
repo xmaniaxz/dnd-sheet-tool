@@ -158,6 +158,7 @@ function WeaponCard({ weapon, index, onRemove, onEdit }: { weapon: Weapon; index
             <div className="flex gap-4 flex-wrap">
               <span>Damage: <span className="font-mono">{weapon.damage}</span></span>
               {weapon.damageType && <span>Type: {weapon.damageType}</span>}
+              <span>Ability: {(weapon.abilityModifier || 'auto').toUpperCase()}</span>
               {weapon.attackBonus !== undefined && <span>Attack: +{weapon.attackBonus}</span>}
             </div>
             {weapon.properties && weapon.properties.length > 0 && (
@@ -245,6 +246,7 @@ function WeaponModal({ onClose, initial, index }: { onClose: () => void; initial
         numDice,
         diceType,
         damageType: (initial.damageType || "slashing") as Weapon['damageType'],
+        abilityModifier: (initial.abilityModifier || "auto") as NonNullable<Weapon['abilityModifier']>,
         attackBonus: initial.attackBonus ?? 0,
         magicalBonus: 0,
         properties: (initial.properties || []).join(", "),
@@ -258,6 +260,7 @@ function WeaponModal({ onClose, initial, index }: { onClose: () => void; initial
       numDice: 1,
       diceType: 8,
       damageType: "slashing" as Weapon['damageType'],
+      abilityModifier: "auto" as NonNullable<Weapon['abilityModifier']>,
       attackBonus: 0,
       magicalBonus: 0,
       properties: "",
@@ -277,6 +280,7 @@ function WeaponModal({ onClose, initial, index }: { onClose: () => void; initial
       category: 'weapon',
       damage: `${formData.numDice}d${formData.diceType}`,
       damageType: formData.damageType,
+      abilityModifier: formData.abilityModifier,
       attackBonus: formData.attackBonus + formData.magicalBonus,
       properties: formData.properties ? formData.properties.split(',').map(p => p.trim()) : undefined,
       range: formData.rangeNormal > 0 ? { normal: formData.rangeNormal, long: formData.rangeLong } : undefined,
@@ -375,6 +379,23 @@ function WeaponModal({ onClose, initial, index }: { onClose: () => void; initial
               <option value="psychic">Psychic</option>
               <option value="thunder">Thunder</option>
               <option value="force">Force</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs opacity-60 mb-1 block">Ability Modifier</label>
+            <select
+              value={formData.abilityModifier}
+              onChange={(e) => setFormData({ ...formData, abilityModifier: e.target.value as NonNullable<Weapon['abilityModifier']> })}
+              className="w-full px-3 py-2 rounded-lg text-sm font-medium panel-subtle border hover:border-(--accent)/50 transition-all focus:outline-none focus:border-(--accent)"
+            >
+              <option value="auto">Auto (weapon rules)</option>
+              <option value="str">Strength</option>
+              <option value="dex">Dexterity</option>
+              <option value="con">Constitution</option>
+              <option value="int">Intelligence</option>
+              <option value="wis">Wisdom</option>
+              <option value="cha">Charisma</option>
             </select>
           </div>
           

@@ -561,25 +561,36 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
     onRoll("1d20", initBonus, "Initiative");
   }, [abilities.dex, feats, initiative, modifier, onRoll]);
 
-  const rollAttack = useCallback((weapon: typeof inventory.weapons[0]) => {
+  const getWeaponAbilityModifier = useCallback((weapon: typeof inventory.weapons[0]) => {
+    const selected = weapon.abilityModifier ?? 'auto';
+
+    if (selected !== 'auto') {
+      return modifier(abilities[selected]);
+    }
+
     const isFinesse = weapon.properties?.includes('finesse');
     const isRanged = weapon.range && weapon.range.normal > 10;
-    
-    let abilityMod: number;
+
     if (isFinesse) {
-      abilityMod = Math.max(modifier(abilities.str), modifier(abilities.dex));
-    } else if (isRanged) {
-      abilityMod = modifier(abilities.dex);
-    } else {
-      abilityMod = modifier(abilities.str);
+      return Math.max(modifier(abilities.str), modifier(abilities.dex));
     }
+
+    if (isRanged) {
+      return modifier(abilities.dex);
+    }
+
+    return modifier(abilities.str);
+  }, [abilities, modifier, inventory.weapons]);
+
+  const rollAttack = useCallback((weapon: typeof inventory.weapons[0]) => {
+    const abilityMod = getWeaponAbilityModifier(weapon);
     
     const profBonus = proficiency ?? 0;
     const weaponBonus = weapon.attackBonus ?? 0;
     const totalBonus = abilityMod + profBonus + weaponBonus;
     
         onRoll("1d20", totalBonus, `${weapon.name} Attack`);
-      }, [abilities, proficiency, modifier, onRoll, inventory]);
+      }, [proficiency, onRoll, getWeaponAbilityModifier]);
 
   const rollDamage = useCallback((weapon: typeof inventory.weapons[0]) => {
     const match = weapon.damage.match(/(\d+)d(\d+)/);
@@ -588,20 +599,10 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
     const numDice = parseInt(match[1]);
     const diceSize = parseInt(match[2]);
     
-    const isFinesse = weapon.properties?.includes('finesse');
-    const isRanged = weapon.range && weapon.range.normal > 10;
-    
-    let abilityMod: number;
-    if (isFinesse) {
-      abilityMod = Math.max(modifier(abilities.str), modifier(abilities.dex));
-    } else if (isRanged) {
-      abilityMod = modifier(abilities.dex);
-    } else {
-      abilityMod = modifier(abilities.str);
-    }
+    const abilityMod = getWeaponAbilityModifier(weapon);
     
         onRoll(`${numDice}d${diceSize}`, abilityMod, `${weapon.name} Damage`);
-      }, [abilities, modifier, onRoll, inventory]);
+      }, [onRoll, getWeaponAbilityModifier]);
 
   return (
     <div className="rounded-2xl panel border p-4 space-y-3">

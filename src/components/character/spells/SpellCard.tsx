@@ -27,8 +27,8 @@ function SpellCard({
   isKnown: boolean;
   isPrepared: boolean;
   onToggle: (spellKey: string) => void;
-  onToggleKnown: (spellName: string) => void;
-  onTogglePrepared: (spellName: string) => void;
+  onToggleKnown: (spell: Spell) => void;
+  onTogglePrepared: (spell: Spell) => void;
   onCast?: (level: number) => void;
   index: number;
   activeTab: TabType;
@@ -144,7 +144,7 @@ function SpellCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleKnown(spell.name);
+              onToggleKnown(spell);
             }}
             className={`px-4 py-3 text-sm font-medium transition-all duration-200 border-l border-white/10 ${
               isKnown
@@ -179,7 +179,7 @@ function SpellCard({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onTogglePrepared(spell.name);
+              onTogglePrepared(spell);
             }}
             className={`px-4 py-3 text-sm font-medium transition-all duration-200 border-l border-white/10 ${
               isPrepared
@@ -264,7 +264,7 @@ function SpellCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onTogglePrepared(spell.name);
+                    onTogglePrepared(spell);
                   }}
                   className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isPrepared
@@ -277,7 +277,7 @@ function SpellCard({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onToggleKnown(spell.name);
+                    onToggleKnown(spell);
                   }}
                   className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
                 >
@@ -290,7 +290,7 @@ function SpellCard({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onToggleKnown(spell.name);
+                  onToggleKnown(spell);
                 }}
                 className={`w-full px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isKnown

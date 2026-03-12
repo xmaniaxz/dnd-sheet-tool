@@ -14,6 +14,7 @@ import { characterService } from "@/lib/characterService";
 export type Feat = {
   title: string;
   lines: string[];
+  sourceLinks?: string[];
 };
 
 export type Abilities = {
@@ -61,6 +62,11 @@ export type Identity = {
   race: string;
   class: string;
   subClass: string;
+  sourceLinks?: {
+    race?: string;
+    class?: string;
+    subClass?: string;
+  };
   background: string;
   alignment: string;
   experience: string;
@@ -92,6 +98,7 @@ export type Item = {
 
 export type Weapon = Item & {
   category: 'weapon';
+  abilityModifier?: 'auto' | 'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha';
   attackBonus?: number;
   damage: string;
   damageType?: 'slashing' | 'piercing' | 'bludgeoning' | 'magic' | 'fire' | 'cold' | 'lightning' | 'acid' | 'poison' | 'necrotic' | 'radiant' | 'psychic' | 'thunder' | 'force';
@@ -198,6 +205,27 @@ function proficiencyForLevel(level: number): number {
   if (level >= 9) return 4;
   if (level >= 5) return 3;
   return 2;
+}
+
+function hitDieForClass(className?: string): string {
+  const normalized = (className || "").trim().toLowerCase();
+  const primaryClass = normalized.split(/[|/,]/)[0]?.trim() || "";
+
+  if (primaryClass === "barbarian") return "d12";
+
+  if (["fighter", "paladin", "ranger"].includes(primaryClass)) {
+    return "d10";
+  }
+
+  if (["artificer", "bard", "cleric", "druid", "monk", "rogue", "warlock"].includes(primaryClass)) {
+    return "d8";
+  }
+
+  if (["sorcerer", "wizard"].includes(primaryClass)) {
+    return "d6";
+  }
+
+  return "d8";
 }
 
 const defaultData: CharacterData = {
@@ -395,6 +423,31 @@ export function CharacterSaveFileProvider({ children }: { children: ReactNode })
     // Only depends on level to avoid loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.level]);
+
+  // Keep hit dice in sync with class + level (type and total)
+  useEffect(() => {
+    const expectedType = hitDieForClass(data.identity.class);
+    const expectedTotal = Math.max(1, data.level || 1);
+    const currentHitDice = data.hitDice;
+    const currentValue = currentHitDice?.current ?? expectedTotal;
+    const normalizedCurrent = Math.min(Math.max(0, currentValue), expectedTotal);
+
+    if (
+      currentHitDice?.type !== expectedType ||
+      currentHitDice?.total !== expectedTotal ||
+      currentHitDice?.current !== normalizedCurrent
+    ) {
+      setData((prev) => ({
+        ...prev,
+        hitDice: {
+          type: expectedType,
+          total: expectedTotal,
+          current: Math.min(Math.max(0, prev.hitDice?.current ?? expectedTotal), expectedTotal),
+        },
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.identity.class, data.level, data.hitDice?.type, data.hitDice?.total, data.hitDice?.current]);
 
   // Mark as dirty when data changes (but not on initial load)
   useEffect(() => {

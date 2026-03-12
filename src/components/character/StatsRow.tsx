@@ -27,21 +27,20 @@ export default function StatsRow() {
     const parts: string[] = [];
     parts.push(`DEX: ${dexMod >= 0 ? '+' : ''}${dexMod}`);
     if (alertBonus > 0) parts.push(`Alert: +${alertBonus}`);
-    parts.push(`= ${autoInitiative >= 0 ? '+' : ''}${autoInitiative}`);
+    const base = parts.join(' + ');
+    const total = `${autoInitiative >= 0 ? '+' : ''}${autoInitiative}`;
     if (hasInitiativeOverride) {
-      parts.push(`(Override: ${effectiveInitiative >= 0 ? '+' : ''}${effectiveInitiative})`);
+      return `${base} = ${total} (Override: ${effectiveInitiative >= 0 ? '+' : ''}${effectiveInitiative})`;
     }
 
-    return parts.join(' + ');
+    return `${base} = ${total}`;
   }, [dexMod, alertBonus, autoInitiative, hasInitiativeOverride, effectiveInitiative]);
 
   const passivePerceptionBreakdown = useMemo(() => {
     const parts = ['Base: 10'];
     parts.push(`WIS: ${wisMod >= 0 ? '+' : ''}${wisMod}`);
     if (isPerceptionProficient) parts.push(`Prof: +${perceptionProficiency}`);
-    parts.push(`= ${passivePerception}`);
-
-    return parts.join(' + ');
+    return `${parts.join(' + ')} = ${passivePerception}`;
   }, [wisMod, isPerceptionProficient, perceptionProficiency, passivePerception]);
 
   const handleAcChange = useCallback((v: number) => setByPath("ac", v), [setByPath]);

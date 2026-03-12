@@ -6,6 +6,7 @@ export { default as AbilityScoresPanel } from './AbilityScoresPanel';
 export { default as CharacterInfoPanel } from './CharacterInfoPanel';
 export { default as CoinsPanel } from './CoinsPanel';
 export { default as DeathSaves } from './DeathSaves';
+export { default as FeatsPanel } from './FeatsPanel';
 export { default as HpBar } from './HpBar';
 export { default as IdentityPanel } from './IdentityPanel';
 export { default as InventoryPanel } from './InventoryPanel';

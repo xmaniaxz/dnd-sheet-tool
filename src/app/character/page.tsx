@@ -30,6 +30,7 @@ import CharacterInfoPanel from "@/components/character/CharacterInfoPanel";
 import AbilityScoresPanel from "@/components/character/AbilityScoresPanel";
 import CoinsPanel from "@/components/character/CoinsPanel";
 import InventoryPanel from "@/components/character/InventoryPanel";
+import FeatsPanel from "@/components/character/FeatsPanel";
 import SpellsSection from "@/components/character/SpellsSection";
 import { SaveIndicator } from "@/components/SaveIndicator";
 import ProfileImageUpload from "@/components/character/ProfileImageUpload";
@@ -40,11 +41,6 @@ import ProfileImageUpload from "@/components/character/ProfileImageUpload";
 
 const tabs = ["Feats", "Notes", "Character Info", "Identity", "Dice"] as const;
 type Tab = (typeof tabs)[number];
-
-type Feat = {
-  title: string;
-  lines: string[];
-};
 
 type ImportedInventoryItem = {
   category: "weapon" | "armor" | "consumable" | "tool" | "treasure" | "misc";
@@ -62,6 +58,17 @@ function CharacterPageContent() {
   const [activeTab, setActiveTab] = useState<Tab>("Feats");
   const { data, setData, setByPath, loadCharacter, createNewCharacter } = useCharacter();
   const { editMode, toggleEditMode } = useEditMode();
+
+  useEffect(() => {
+    const characterName = data.name.trim();
+    document.title = characterName
+      ? `LCN | Sheet | ${characterName}`
+      : "LCN | DnD Sheet Tool";
+
+    return () => {
+      document.title = "LCN | DnD Sheet Tool";
+    };
+  }, [data.name]);
 
   // Handle URL parameters for loading or creating characters
   useEffect(() => {
@@ -476,14 +483,15 @@ const Tabs = memo(function Tabs({
 });
 
 function RightPanel({ activeTab }: { activeTab: Tab }) {
+  const { data } = useCharacter();
+  const { editMode } = useEditMode();
   const [contentHeight, setContentHeight] = useState<number | "auto">("auto");
   const measureRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const updateHeight = () => {
       if (measureRef.current) {
-        // Force a reflow to ensure accurate measurement
-        const height = measureRef.current.getBoundingClientRect().height;
+        const height = measureRef.current.scrollHeight;
         setContentHeight(height);
       }
     };
@@ -496,19 +504,25 @@ function RightPanel({ activeTab }: { activeTab: Tab }) {
       setTimeout(updateHeight, 300),
     ];
 
-    const resizeObserver = measureRef.current ? new ResizeObserver(() => {
-      updateHeight();
-    }) : null;
+    const resizeObserver = measureRef.current
+      ? new ResizeObserver(() => {
+          updateHeight();
+        })
+      : null;
 
     if (measureRef.current) {
       resizeObserver?.observe(measureRef.current);
+      const noteTextarea = measureRef.current.querySelector("textarea");
+      if (noteTextarea) {
+        resizeObserver?.observe(noteTextarea);
+      }
     }
 
     return () => {
       timeouts.forEach(clearTimeout);
       resizeObserver?.disconnect();
     };
-  }, [activeTab]);
+  }, [activeTab, data.notes, editMode]);
 
   return (
     <motion.div 
@@ -540,142 +554,6 @@ function RightPanel({ activeTab }: { activeTab: Tab }) {
         </AnimatePresence>
       </div>
     </motion.div>
-  );
-}
-
-function FeatsPanel() {
-  const { data, setByPath } = useCharacter();
-  const { editMode } = useEditMode();
-  const feats = useMemo(() => (data.feats || []) as Feat[], [data.feats]);
-
-  const addFeat = useCallback(() => {
-    const newFeats = [...feats, { title: "New Feat", lines: [""] }];
-    setByPath("feats", newFeats);
-  }, [feats, setByPath]);
-
-  const removeFeat = useCallback((index: number) => {
-    const newFeats = feats.filter((_, i) => i !== index);
-    setByPath("feats", newFeats);
-  }, [feats, setByPath]);
-
-  const updateFeatTitle = useCallback((index: number, title: string) => {
-    const newFeats = [...feats];
-    newFeats[index] = { ...newFeats[index], title };
-    setByPath("feats", newFeats);
-  }, [feats, setByPath]);
-
-  const updateFeatLine = useCallback((featIndex: number, lineIndex: number, value: string) => {
-    const newFeats = [...feats];
-    const newLines = [...newFeats[featIndex].lines];
-    newLines[lineIndex] = value;
-    newFeats[featIndex] = { ...newFeats[featIndex], lines: newLines };
-    setByPath("feats", newFeats);
-  }, [feats, setByPath]);
-
-  const addFeatLine = useCallback((featIndex: number) => {
-    const newFeats = [...feats];
-    newFeats[featIndex] = {
-      ...newFeats[featIndex],
-      lines: [...newFeats[featIndex].lines, ""],
-    };
-    setByPath("feats", newFeats);
-  }, [feats, setByPath]);
-
-  const removeFeatLine = useCallback((featIndex: number, lineIndex: number) => {
-    const newFeats = [...feats];
-    newFeats[featIndex] = {
-      ...newFeats[featIndex],
-      lines: newFeats[featIndex].lines.filter((_, i) => i !== lineIndex),
-    };
-    setByPath("feats", newFeats);
-  }, [feats, setByPath]);
-
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg sm:text-xl font-semibold">Feats</h2>
-        {editMode && (
-          <button
-            onClick={addFeat}
-            className="px-3 py-1 bg-(--accent) text-(--accent-contrast) rounded-lg text-sm font-medium hover:opacity-90 transition"
-          >
-            + Add Feat
-          </button>
-        )}
-      </div>
-      <div className="space-y-3 overflow-y-auto pr-1 scrollbar-thin">
-        {feats.length === 0 && !editMode ? (
-          <p className="text-sm opacity-60">No feats yet.</p>
-        ) : (
-          feats.map((feat, featIndex) => (
-            <div
-              key={featIndex}
-              className="rounded-xl border border-zinc-700/90 p-3 sm:p-4 relative"
-            >
-              {editMode && (
-                <button
-                  onClick={() => removeFeat(featIndex)}
-                  className="absolute top-1 right-1 text-red-500 hover:text-red-300 text-sm font-bold"
-                  title="Remove feat"
-                >
-                  ✕
-                </button>
-              )}
-              
-              {editMode ? (
-                <input
-                  type="text"
-                  value={feat.title}
-                  onChange={(e) => updateFeatTitle(featIndex, e.target.value)}
-                  className="font-semibold mb-2 w-full input"
-                  placeholder="Feat name"
-                />
-              ) : (
-                <h3 className="font-semibold mb-2">{feat.title}</h3>
-              )}
-
-              <ul className="list-disc text-sm space-y-1 pl-5">
-                {feat.lines.map((line, lineIndex) => (
-                  <li key={lineIndex} className="flex items-start gap-2">
-                    {editMode ? (
-                      <>
-                        <input
-                          type="text"
-                          value={line}
-                          onChange={(e) => updateFeatLine(featIndex, lineIndex, e.target.value)}
-                          className="flex-1 input text-sm"
-                          placeholder="Feat description"
-                        />
-                        {feat.lines.length > 1 && (
-                          <button
-                            onClick={() => removeFeatLine(featIndex, lineIndex)}
-                            className="text-red-400 hover:text-red-300 text-xs"
-                            title="Remove line"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </>
-                    ) : (
-                      line
-                    )}
-                  </li>
-                ))}
-              </ul>
-
-              {editMode && (
-                <button
-                  onClick={() => addFeatLine(featIndex)}
-                  className="mt-2 text-xs opacity-60 hover:opacity-100 transition"
-                >
-                  + Add line
-                </button>
-              )}
-            </div>
-          ))
-        )}
-      </div>
-    </div>
   );
 }
 

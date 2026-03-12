@@ -16,7 +16,6 @@ import { useCharacter } from "@/context/CharacterSaveFileContext";
 import { useEditMode } from "@/context/EditModeContext";
 import { GetSpellsFromTable } from "@/app/character/node-appwrite";
 import ClassChangeModal from "@/components/modals/ClassChangeModal";
-import SpellSlotChangesModal from "@/components/modals/SpellSlotChangesModal";
 import SpellCard from "@/components/character/spells/SpellCard";
 import SpellSlotsPanel from "@/components/character/spells/SpellSlotsPanel";
 import {
@@ -41,6 +40,10 @@ export default function SpellsSection() {
   const { data, setByPath } = useCharacter();
   const { editMode } = useEditMode();
 
+  const getSpellStorageKey = useCallback((spell: Spell) => {
+    return getSpellRenderKey(spell);
+  }, []);
+
   /* ----------------------------------------------------------------------------
    * STATE MANAGEMENT
    * ---------------------------------------------------------------------------- */
@@ -51,7 +54,6 @@ export default function SpellsSection() {
   const [expandedSpells, setExpandedSpells] = useState<Set<string>>(new Set());
   const [editingSlots, setEditingSlots] = useState<number | null>(null);
   const [showClassChangeModal, setShowClassChangeModal] = useState(false);
-  const [showEditModeExitModal, setShowEditModeExitModal] = useState(false);
   const [spells, setSpells] = useState<Spell[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState<string>("");
@@ -119,51 +121,109 @@ export default function SpellsSection() {
     return new Set(spellData?.prepared || []);
   }, [data.spells]);
 
+  const hasSourceAwareKnownKey = useCallback((spellName: string) => {
+    const prefix = `${spellName}::`;
+    return Array.from(knownSpellNames).some((key) => key.startsWith(prefix));
+  }, [knownSpellNames]);
+
+  const hasSourceAwarePreparedKey = useCallback((spellName: string) => {
+    const prefix = `${spellName}::`;
+    return Array.from(preparedSpellNames).some((key) => key.startsWith(prefix));
+  }, [preparedSpellNames]);
+
   /* ----------------------------------------------------------------------------
    * SPELL MANAGEMENT FUNCTIONS
    * ---------------------------------------------------------------------------- */
 
   // Toggle spell known state
-  const toggleSpellKnown = useCallback((spellName: string) => {
+  const toggleSpellKnown = useCallback((spell: Spell) => {
+    const spellName = spell.name;
+    const spellKey = getSpellStorageKey(spell);
     const currentKnown = Array.from(knownSpellNames);
     const currentPrepared = Array.from(preparedSpellNames);
+    const hasKnownByKey = knownSpellNames.has(spellKey);
+    const hasKnownByLegacyName = knownSpellNames.has(spellName);
+    const hasPreparedByKey = preparedSpellNames.has(spellKey);
+    const hasPreparedByLegacyName = preparedSpellNames.has(spellName);
 
-    if (currentKnown.includes(spellName)) {
+    if (hasKnownByKey || hasKnownByLegacyName) {
       // Removing from known - also remove from prepared
-      const newKnown = currentKnown.filter((name) => name !== spellName);
-      const newPrepared = currentPrepared.filter((name) => name !== spellName);
+      const newKnown = currentKnown.filter(
+        (name) => name !== spellKey && name !== spellName,
+      );
+      const newPrepared = currentPrepared.filter(
+        (name) => name !== spellKey && name !== spellName,
+      );
       setByPath("spells.known", newKnown);
       setByPath("spells.prepared", newPrepared);
     } else {
       // Adding to known
-      const newKnown = [...currentKnown, spellName];
+      const newKnown = [
+        ...currentKnown.filter((name) => name !== spellName),
+        spellKey,
+      ];
+
+      const newPrepared = hasPreparedByLegacyName && !hasPreparedByKey
+        ? [
+            ...currentPrepared.filter((name) => name !== spellName),
+            spellKey,
+          ]
+        : currentPrepared;
+
       setByPath("spells.known", newKnown);
+      if (newPrepared !== currentPrepared) {
+        setByPath("spells.prepared", newPrepared);
+      }
     }
-  }, [knownSpellNames, preparedSpellNames, setByPath]);
+  }, [
+    getSpellStorageKey,
+    knownSpellNames,
+    preparedSpellNames,
+    setByPath,
+  ]);
 
   // Toggle spell prepared state (can only prepare known spells)
-  const toggleSpellPrepared = useCallback((spellName: string) => {
-    if (!spellName || !knownSpellNames.has(spellName)) return; // Can't prepare unknown spells
+  const toggleSpellPrepared = useCallback((spell: Spell) => {
+    const spellName = spell.name;
+    const spellKey = getSpellStorageKey(spell);
+    const knownByKey = knownSpellNames.has(spellKey);
+    const knownByLegacyName = knownSpellNames.has(spellName);
+
+    if (!spellName || (!knownByKey && !knownByLegacyName)) return; // Can't prepare unknown spells
 
     const currentPrepared = Array.from(preparedSpellNames);
-    const newPrepared = currentPrepared.includes(spellName)
-      ? currentPrepared.filter((name) => name !== spellName)
-      : [...currentPrepared, spellName];
+    const newPrepared = preparedSpellNames.has(spellKey) || preparedSpellNames.has(spellName)
+      ? currentPrepared.filter((name) => name !== spellKey && name !== spellName)
+      : [
+          ...currentPrepared.filter((name) => name !== spellName),
+          spellKey,
+        ];
 
     setByPath("spells.prepared", newPrepared);
-  }, [knownSpellNames, preparedSpellNames, setByPath]);
+  }, [
+    getSpellStorageKey,
+    knownSpellNames,
+    preparedSpellNames,
+    setByPath,
+  ]);
 
   // Check if spell is known
-  const isSpellKnown = useCallback((spellName: string) => {
-    if (!spellName) return false;
-    return knownSpellNames.has(spellName);
-  }, [knownSpellNames]);
+  const isSpellKnown = useCallback((spell: Spell) => {
+    if (!spell?.name) return false;
+    const spellKey = getSpellStorageKey(spell);
+    if (knownSpellNames.has(spellKey)) return true;
+    if (hasSourceAwareKnownKey(spell.name)) return false;
+    return knownSpellNames.has(spell.name);
+  }, [getSpellStorageKey, hasSourceAwareKnownKey, knownSpellNames]);
 
   // Check if spell is prepared
-  const isSpellPrepared = useCallback((spellName: string) => {
-    if (!spellName) return false;
-    return preparedSpellNames.has(spellName);
-  }, [preparedSpellNames]);
+  const isSpellPrepared = useCallback((spell: Spell) => {
+    if (!spell?.name) return false;
+    const spellKey = getSpellStorageKey(spell);
+    if (preparedSpellNames.has(spellKey)) return true;
+    if (hasSourceAwarePreparedKey(spell.name)) return false;
+    return preparedSpellNames.has(spell.name);
+  }, [getSpellStorageKey, hasSourceAwarePreparedKey, preparedSpellNames]);
 
   // Check if spell slots are dirty (modified from defaults)
   const slotChanges = useMemo(() => {
@@ -218,12 +278,6 @@ export default function SpellsSection() {
           };
         }
       }
-
-      if (spellSlotsDirty) {
-        scheduleId = requestAnimationFrame(() => {
-          setShowEditModeExitModal(true);
-        });
-      }
     }
 
     prevEditModeRef.current = editMode;
@@ -231,7 +285,7 @@ export default function SpellsSection() {
     return () => {
       if (scheduleId !== null) cancelAnimationFrame(scheduleId);
     };
-  }, [editMode, spellSlotsDirty, data.identity.class, data.identity.subClass]);
+  }, [editMode, data.identity.class, data.identity.subClass]);
 
   // Detect class or level changes
   useEffect(() => {
@@ -346,23 +400,6 @@ export default function SpellsSection() {
     setShowClassChangeModal(false);
   };
 
-  const handleKeepChanges = () => {
-    // User wants to keep the modified spell slots
-    setShowEditModeExitModal(false);
-  };
-
-  const handleDiscardChanges = () => {
-    // Reset spell slots to defaults
-    const defaultSlots = calculateSpellSlots(
-      data.identity.class,
-      data.identity.subClass,
-      data.level,
-    );
-    setByPath("spells.slots", defaultSlots);
-
-    setShowEditModeExitModal(false);
-  };
-
   // Get spell slots from character data
   const spellSlots = useMemo(() => {
     const spellData = data.spells as { slots?: SpellSlots } | undefined;
@@ -467,9 +504,9 @@ export default function SpellsSection() {
   // Filter based on tab and level with memoization
   const baseFilteredSpells = useMemo(() => {
     return activeTab === "spellbook"
-      ? spells.filter((spell) => knownSpellNames.has(spell.name))
+      ? spells.filter((spell) => isSpellKnown(spell))
       : spells;
-  }, [activeTab, spells, knownSpellNames]);
+  }, [activeTab, isSpellKnown, spells]);
 
   const sourceOptions = useMemo(() => {
     const baseSpells = baseFilteredSpells;
@@ -597,15 +634,6 @@ export default function SpellsSection() {
         />
       )}
 
-      {/* Edit Mode Exit Modal */}
-      {showEditModeExitModal && (
-        <SpellSlotChangesModal
-          changes={slotChanges}
-          onDiscard={handleDiscardChanges}
-          onKeep={handleKeepChanges}
-        />
-      )}
-
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Spells</h2>
         <div className="flex items-center gap-3">
@@ -667,7 +695,7 @@ export default function SpellsSection() {
       {/* Search and Filters Row */}
       <div className="flex gap-4 flex-wrap items-end">
         {/* Search Bar */}
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-50">
           <label className="text-xs opacity-60 mb-1 block">Search</label>
           <div className="relative">
             <input
@@ -715,7 +743,7 @@ export default function SpellsSection() {
         </div>
 
         {/* Class Filter Dropdown */}
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-50">
           <label className="text-xs opacity-60 mb-1 block">Class</label>
           <select
             value={selectedClass}
@@ -737,7 +765,7 @@ export default function SpellsSection() {
         </div>
 
         {/* Level Filter Dropdown */}
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-50">
           <label className="text-xs opacity-60 mb-1 block">Source</label>
           <select
             value={selectedSource}
@@ -754,7 +782,7 @@ export default function SpellsSection() {
         </div>
 
         {/* Level Filter Dropdown */}
-        <div className="flex-1 min-w-[200px]">
+        <div className="flex-1 min-w-50">
           <label className="text-xs opacity-60 mb-1 block">Level</label>
           <select
             value={selectedLevel}
@@ -808,7 +836,7 @@ export default function SpellsSection() {
                     }}
                     className="text-xs px-2 py-1 rounded-md panel-subtle border hover:border-(--accent)/50 transition-all duration-200"
                   >
-                    Uncollapse
+                    Expand
                   </button>
                 </div>
                 </h3>
@@ -827,8 +855,8 @@ export default function SpellsSection() {
                       spell={spell}
                       spellKey={spellKey}
                       isExpanded={expandedSpells.has(spellKey)}
-                      isKnown={isSpellKnown(spell.name)}
-                      isPrepared={isSpellPrepared(spell.name)}
+                      isKnown={isSpellKnown(spell)}
+                      isPrepared={isSpellPrepared(spell)}
                       onToggle={handleToggleExpanded}
                       onToggleKnown={toggleSpellKnown}
                       onTogglePrepared={toggleSpellPrepared}

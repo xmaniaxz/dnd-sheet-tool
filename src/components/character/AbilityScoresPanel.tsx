@@ -39,7 +39,7 @@ export default function AbilityScoresPanel() {
             onClick={() => setExpanded(new Set(allAbilityKeys))}
             className="text-xs px-2 py-1 rounded-md panel-subtle border hover:border-(--accent)/50 transition-all duration-200"
           >
-            Uncollapse all
+            Expand all
           </button>
         </div>
       </div>
