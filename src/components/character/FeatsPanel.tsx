@@ -117,7 +117,7 @@ export default function FeatsPanel() {
   const toggleFeatCollapsed = useCallback((featIndex: number) => {
     setCollapsedFeats((prev) => ({
       ...prev,
-      [featIndex]: !prev[featIndex],
+      [featIndex]: !(prev[featIndex] ?? true),
     }));
   }, []);
 
