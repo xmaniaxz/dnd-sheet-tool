@@ -293,7 +293,7 @@ const defaultData: CharacterData = {
   proficiency: 2,
   passivePerception: 10,
   speed: 30,
-  initiative: 0,
+  initiative: undefined,
   inspiration: false,
   deathSaves: { successes: 0, failures: 0 },
   hitDice: { total: 1, current: 1, type: "d8" },

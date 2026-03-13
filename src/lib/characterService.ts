@@ -16,6 +16,27 @@ export type CharacterDocument = CharacterData & {
   teamId?: string | null;
 };
 
+function computeAutoInitiative(character: Partial<CharacterData>): number {
+  const dex = character.abilities?.dex ?? 10;
+  const dexMod = Math.floor((dex - 10) / 2);
+  const hasAlert = !!character.feats?.some((feat) =>
+    feat.title.toLowerCase().includes("alert")
+  );
+  return dexMod + (hasAlert ? 5 : 0);
+}
+
+function resolveInitiativeValue(
+  incoming: Partial<CharacterData>,
+  baseline?: Partial<CharacterData>
+): number {
+  if (typeof incoming.initiative === "number") {
+    return incoming.initiative;
+  }
+
+  const merged = { ...(baseline || {}), ...incoming };
+  return computeAutoInitiative(merged);
+}
+
 /**
  * Get the current user ID from Appwrite
  */
@@ -77,6 +98,8 @@ export const characterService = {
         ...characterWithoutIdFields,
         userId,
         teamId: currentTeamId,
+        // Persist a concrete initiative value so Appwrite doesn't keep schema defaults.
+        initiative: resolveInitiativeValue(character),
         // Store complex objects as JSON strings if needed
         identity: JSON.stringify(character.identity),
         abilities: JSON.stringify(character.abilities),
@@ -178,6 +201,8 @@ export const characterService = {
       if (character.inventory)
         doc.inventory = JSON.stringify(character.inventory);
       if (character.spells) doc.spells = JSON.stringify(character.spells);
+      // Always persist a resolved initiative value to keep DB and UI in sync.
+      doc.initiative = resolveInitiativeValue(character, existing);
 
       const response = await databases.updateRow({
         databaseId: DATABASE_ID,
@@ -334,7 +359,7 @@ function parseCharacterDocument(doc: Record<string, unknown>): CharacterDocument
     proficiency: get<number | undefined>("proficiency"),
     passivePerception: get<number | undefined>("passivePerception"),
     speed: get<number | undefined>("speed"),
-    initiative: get<number | undefined>("initiative"),
+    initiative: get<number | null | undefined>("initiative") ?? undefined,
     inspiration: get<boolean | undefined>("inspiration"),
     deathSaves: typeof get<unknown>("deathSaves") === "string"
       ? JSON.parse(get<string>("deathSaves"))

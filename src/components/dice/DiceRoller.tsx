@@ -16,6 +16,7 @@
 import { useEffect, useState, useRef, memo, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useCharacter } from "@/context/CharacterSaveFileContext";
+import type { Weapon } from "@/context/CharacterSaveFileContext";
 import DiceBox from "@3d-dice/dice-box-threejs/dist/dice-box-threejs.es.js";
 import { DICE_COLORS, DICE_OPTIONS, DICE_TEXTURES } from "@/components/dice/diceConfig";
 import "@/app/character/character.css";
@@ -561,7 +562,7 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
     onRoll("1d20", initBonus, "Initiative");
   }, [abilities.dex, feats, initiative, modifier, onRoll]);
 
-  const getWeaponAbilityModifier = useCallback((weapon: typeof inventory.weapons[0]) => {
+  const getWeaponAbilityModifier = useCallback((weapon: Weapon) => {
     const selected = weapon.abilityModifier ?? 'auto';
 
     if (selected !== 'auto') {
@@ -580,9 +581,9 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
     }
 
     return modifier(abilities.str);
-  }, [abilities, modifier, inventory.weapons]);
+  }, [abilities, modifier]);
 
-  const rollAttack = useCallback((weapon: typeof inventory.weapons[0]) => {
+  const rollAttack = useCallback((weapon: Weapon) => {
     const abilityMod = getWeaponAbilityModifier(weapon);
     
     const profBonus = proficiency ?? 0;
@@ -592,7 +593,7 @@ const QuickRollButtons = memo(function QuickRollButtons({ onRoll }: { onRoll: (n
         onRoll("1d20", totalBonus, `${weapon.name} Attack`);
       }, [proficiency, onRoll, getWeaponAbilityModifier]);
 
-  const rollDamage = useCallback((weapon: typeof inventory.weapons[0]) => {
+  const rollDamage = useCallback((weapon: Weapon) => {
     const match = weapon.damage.match(/(\d+)d(\d+)/);
     if (!match) return;
     

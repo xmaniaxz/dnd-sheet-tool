@@ -16,7 +16,8 @@ export default function StatsRow() {
   );
   const alertBonus = hasAlert ? 5 : 0;
   const autoInitiative = dexMod + alertBonus;
-  const hasInitiativeOverride = typeof data.initiative === "number";
+  const hasInitiativeOverride =
+    typeof data.initiative === "number" && data.initiative !== autoInitiative;
   const effectiveInitiative = hasInitiativeOverride ? (data.initiative ?? autoInitiative) : autoInitiative;
 
   const perceptionProficiency = data.proficiency ?? 0;
